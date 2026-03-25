@@ -1,0 +1,240 @@
+<mujoco>
+
+    <!-- ================= GLOBAL SOLVER TUNING ================= -->
+    <!-- <option timestep="0.002"/>
+
+    <default>
+        <geom solref="0.002 1"
+              solimp="0.9 0.95 0.002"/>
+    </default> -->
+
+    <!-- ================= TARGET ================= -->
+
+    <body mocap="true" name="target_0"
+          pos="-0.25 -0.25 0.3"
+          quat="0.9238 0 0 0.38267">
+        <geom name="target_0"
+              type="box"
+              size="0.08 0.08 0.08"
+              rgba="1 1 1 0.2"
+              contype="0"
+              conaffinity="0"/>
+    </body>
+
+    <!-- ================= BALL (ROUNDED BOX) ================= -->
+
+    <body name="ball"
+          pos="-0.3 0 0.28"
+          quat="0.9238 0 0 0.38267">
+
+        <joint type="free" damping="0.007" name="free_joint_0"/>
+
+        <!-- ===================================================== -->
+        <!-- CORE (mass + inertia only)                            -->
+        <!-- ===================================================== -->
+        <geom type="box"
+              size="0.06 0.06 0.06"
+              mass="0.05"
+              rgba="0 0.6 0 0"
+              contype="0"
+              conaffinity="0"/>
+
+        <!-- ===================================================== -->
+        <!-- DOMINANT SUPPORT FACE (BOTTOM)                        -->
+        <!-- ===================================================== -->
+        <geom type="box"
+              pos="0 0 -0.082"
+              size="0.065 0.065 0.1"
+              rgba="0 0.6 0 1"
+              contype="0"
+              conaffinity="2158718"
+              priority="2"/>
+
+        <!-- ===================================================== -->
+        <!-- OTHER 5 FACES                                         -->
+        <!-- ===================================================== -->
+        <geom type="box" pos="0 0 0.08"
+              size="0.06 0.06 0.003"
+              rgba="0 0.6 0 1"
+              contype="0" conaffinity="2158718" priority="2"/>
+
+        <geom type="box" pos="0.08 0 0"
+              size="0.003 0.06 0.06"
+              rgba="0 0.6 0 1"
+              contype="0" conaffinity="2158718" priority="2"/>
+        <geom type="box" pos="-0.08 0 0"
+              size="0.003 0.06 0.06"
+              rgba="0 0.6 0 1"
+              contype="0" conaffinity="2158718" priority="2"/>
+
+        <geom type="box" pos="0 0.08 0"
+              size="0.06 0.003 0.06"
+              rgba="0 0.6 0 1"
+              contype="0" conaffinity="2158718" priority="2"/>
+        <geom type="box" pos="0 -0.08 0"
+              size="0.06 0.003 0.06"
+              rgba="0 0.6 0 1"
+              contype="0" conaffinity="2158718" priority="2"/>
+
+        <!-- ===================================================== -->
+        <!-- 12 EDGE CAPSULES (secondary contact)                  -->
+        <!-- ===================================================== -->
+
+        <!-- X edges -->
+        <geom type="capsule" fromto="-0.06  0.08  0.08   0.06  0.08  0.08"
+              size="0.01" rgba="0 0.6 0 1"
+              contype="0" conaffinity="2158718" priority="1"/>
+        <geom type="capsule" fromto="-0.06 -0.08  0.08   0.06 -0.08  0.08"
+              size="0.01" rgba="0 0.6 0 1"
+              contype="0" conaffinity="2158718" priority="1"/>
+        <geom type="capsule" fromto="-0.06  0.08 -0.08   0.06  0.08 -0.08"
+              size="0.01" rgba="0 0.6 0 1"
+              contype="0" conaffinity="2158718" priority="1"/>
+        <geom type="capsule" fromto="-0.06 -0.08 -0.08   0.06 -0.08 -0.08"
+              size="0.01" rgba="0 0.6 0 1"
+              contype="0" conaffinity="2158718" priority="1"/>
+
+        <!-- Y edges -->
+        <geom type="capsule" fromto=" 0.08 -0.06  0.08   0.08  0.06  0.08"
+              size="0.01" rgba="0 0.6 0 1"
+              contype="0" conaffinity="2158718" priority="1"/>
+        <geom type="capsule" fromto="-0.08 -0.06  0.08  -0.08  0.06  0.08"
+              size="0.01" rgba="0 0.6 0 1"
+              contype="0" conaffinity="2158718" priority="1"/>
+        <geom type="capsule" fromto=" 0.08 -0.06 -0.08   0.08  0.06 -0.08"
+              size="0.01" rgba="0 0.6 0 1"
+              contype="0" conaffinity="2158718" priority="1"/>
+        <geom type="capsule" fromto="-0.08 -0.06 -0.08  -0.08  0.06 -0.08"
+              size="0.01" rgba="0 0.6 0 1"
+              contype="0" conaffinity="2158718" priority="1"/>
+
+        <!-- Z edges -->
+        <geom type="capsule" fromto=" 0.08  0.08 -0.06   0.08  0.08  0.06"
+              size="0.01" rgba="0 0.6 0 1"
+              contype="0" conaffinity="2158718" priority="1"/>
+        <geom type="capsule" fromto="-0.08  0.08 -0.06  -0.08  0.08  0.06"
+              size="0.01" rgba="0 0.6 0 1"
+              contype="0" conaffinity="2158718" priority="1"/>
+        <geom type="capsule" fromto=" 0.08 -0.08 -0.06   0.08 -0.08  0.06"
+              size="0.01" rgba="0 0.6 0 1"
+              contype="0" conaffinity="2158718" priority="1"/>
+        <geom type="capsule" fromto="-0.08 -0.08 -0.06  -0.08 -0.08  0.06"
+              size="0.01" rgba="0 0.6 0 1"
+              contype="0" conaffinity="2158718" priority="1"/>
+
+        <!-- ===================================================== -->
+        <!-- 8 CORNER SPHERES                                      -->
+        <!-- ===================================================== -->
+        <geom type="sphere" pos=" 0.08  0.08  0.08" size="0.01"
+              rgba="0 0.6 0 1" contype="0" conaffinity="2158718" priority="1"/>
+        <geom type="sphere" pos="-0.08  0.08  0.08" size="0.01"
+              rgba="0 0.6 0 1" contype="0" conaffinity="2158718" priority="1"/>
+        <geom type="sphere" pos=" 0.08 -0.08  0.08" size="0.01"
+              rgba="0 0.6 0 1" contype="0" conaffinity="2158718" priority="1"/>
+        <geom type="sphere" pos="-0.08 -0.08  0.08" size="0.01"
+              rgba="0 0.6 0 1" contype="0" conaffinity="2158718" priority="1"/>
+
+        <geom type="sphere" pos=" 0.08  0.08 -0.08" size="0.01"
+              rgba="0 0.6 0 1" contype="0" conaffinity="2158718" priority="1"/>
+        <geom type="sphere" pos="-0.08  0.08 -0.08" size="0.01"
+              rgba="0 0.6 0 1" contype="0" conaffinity="2158718" priority="1"/>
+        <geom type="sphere" pos=" 0.08 -0.08 -0.08" size="0.01"
+              rgba="0 0.6 0 1" contype="0" conaffinity="2158718" priority="1"/>
+        <geom type="sphere" pos="-0.08 -0.08 -0.08" size="0.01"
+              rgba="0 0.6 0 1" contype="0" conaffinity="2158718" priority="1"/>
+
+        <!-- ===================================================== -->
+        <!-- FRAMES (EXACTLY AS REQUESTED)                          -->
+        <!-- ===================================================== -->
+        <site name="frame_x" size="0.005" type="box"
+              fromto="0 0 0.06  0.1 0 0.06"
+              rgba="1 0 0 1" group="1"/>
+        <site name="frame_y" size="0.005" type="box"
+              fromto="0 0 0.06  0 0.1 0.06"
+              rgba="0 1 0 1" group="1"/>
+        <site name="frame_z" size="0.005" type="box"
+              fromto="0 0 0.06  0 0 0.15"
+              rgba="0 0 1 1" group="1"/>
+        
+        <!-- ========================================================= -->
+        <!-- SITES (UNCHANGED)                                        -->
+        <!-- ========================================================= -->
+
+        <site name="box_site_1" pos="0.061 -0.061 -0.03"
+            quat="0.2391 -0.8924 -0.3696 0.099"/>
+        <site name="box_site_2" pos="-0.061 0.061 -0.03"
+            quat="0.099 -0.3696 0.8924 -0.2391"/>
+
+        <!-- ===================================================== -->
+        <!-- CHILD BODIES (UNCHANGED)                               -->
+        <!-- ===================================================== -->
+
+        <body name="box_1" pos="0.061 -0.061 -0.03"
+              quat="0.2391 -0.8924 -0.3696 0.099">
+            <geom name="box_1_geom" type="box"
+                  size="0.01 0.01 0.01"
+                  rgba="0 0.6 0 0.6"
+                  contype="0" conaffinity="0"/>
+            <site name="frame_x_1" size="0.005" type="box"
+                  fromto="0 0 0  0.1 0 0"
+                  rgba="1 0 0 1" group="1"/>
+            <site name="frame_y_1" size="0.005" type="box"
+                  fromto="0 0 0  0 0.1 0"
+                  rgba="0 1 0 1" group="1"/>
+            <site name="frame_z_1" size="0.005" type="box"
+                  fromto="0 0 0  0 0 0.1"
+                  rgba="0 0 1 1" group="1"/>
+        </body>
+
+        <body name="box_2" pos="-0.061 0.061 -0.03"
+              quat="0.099 -0.3696 0.8924 -0.2391">
+            <geom name="box_2_geom" type="box"
+                  size="0.01 0.01 0.01"
+                  rgba="0 0.6 0 1"
+                  contype="0" conaffinity="0"/>
+            <site name="frame_x_2" size="0.005" type="box"
+                  fromto="0 0 0  0.1 0 0"
+                  rgba="1 0 0 1" group="1"/>
+            <site name="frame_y_2" size="0.005" type="box"
+                  fromto="0 0 0  0 0.1 0"
+                  rgba="0 1 0 1" group="1"/>
+            <site name="frame_z_2" size="0.005" type="box"
+                  fromto="0 0 0  0 0 0.1"
+                  rgba="0 0 1 1" group="1"/>
+        </body>
+
+
+
+    </body>
+
+    <!-- ================= OTHER BODIES ================= -->
+
+    <body name="center" pos="0 0 0" quat="0 0.70711 -0.70711 0">
+        <geom name="center" type="box"
+              size="0.01 0.01 0.1"
+              rgba="1 1 1 0.1"
+              contype="0" conaffinity="0"/>
+    </body>
+
+    <body mocap="true" name="obstacle" pos="-1 0 2"
+          quat="0 0.70711 0.70711 0">
+        <geom name="obstacle" type="sphere"
+              size="0.05"
+              rgba="0.6 0 0 1"/>
+    </body>
+
+    <body name="table0_marker" pos="-0.496 -0.575 0.05">
+        <geom name="table0_marker" type="box"
+              size="0.05 0.05 0.025"
+              rgba="1 1 1 0.6"
+              contype="0" conaffinity="0"/>
+    </body>
+
+    <body name="table1_marker" pos="-0.956 0.335 0.03">
+        <geom name="table1_marker" type="box"
+              size="0.04 0.04 0.015"
+              rgba="1 1 1 0.6"
+              contype="0" conaffinity="0"/>
+    </body>
+
+</mujoco>

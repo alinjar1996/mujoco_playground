@@ -1,0 +1,99 @@
+<mujoco>
+
+<!-- quat = [w, x, y, z] -->
+<!-- For example, quat = [0.7071, 0.7071, 0, 0] represents a rotation of 90 degrees about the x-axis. End-effector should reach object from a side -->
+<!-- For example, quat = [0.0, 1.0, 0, 0] represents a rotation of 90 degrees about the x-axis. End-effector should reach object from top -->
+
+    <!-- <body mocap="true" name="target_0" pos="-0.25 -0.25 0.3" quat="0.9238 0 0 0.38267">     -->
+    <body mocap="true" name="target_0" pos="-0.25 -0.2 0.3" quat="0.96 0 0 -0.26">
+
+    <!-- <body mocap="true" name="target_0" pos="-0.25 -0.25 0.3" quat="1 0 0 0"> -->
+        <geom name="target_0" rgba="1 1 1 0.2" size="0.08 0.08 0.08" type="box" contype="0" conaffinity="0"/>
+        <!-- <geom name="wall_00" pos="0 0 0.15" rgba="0.6 0 0 0.1" size="0.1 0.1 0.01" type="box" contype="2" conaffinity="0"/>
+        <geom name="wall_11" pos="0 0 -0.15" rgba="0.6 0 0 0.1" size="0.1 0.1 0.01" type="box" contype="2" conaffinity="0"/> -->
+        <site name="frame_x_targ" size="0.005" type="box" fromto="0 0 0.06  0.1 0 0.06" rgba="1 0 0 1" group="1"/>
+        <site name="frame_y_targ" size="0.005" type="box" fromto="0 0 0.06  0 0.1 0.06" rgba="0 1 0 1" group="1"/> 
+        <site name="frame_z_targ" size="0.005" type="box" fromto="0 0 0.06  0 0 0.15" rgba="0 0 1 1" group="1"/>
+    </body>
+
+
+    <!-- <body name="ball" pos="-0.3 0 0.35" quat="0.9238 0 0 0.38267" > -->
+    <body name="ball" pos="-0.3 0 0.35" quat="1 0 0 0" >
+        <joint type="free" damping="0.007" name="free_joint_0"/>
+        <geom name="ball" pos="0 0 0" rgba="0 0.6 0 1" 
+        size="0.08 0.08 0.08" type="box" mass="0.2"
+         contype="0" conaffinity="2158718"  friction="0.5 0.02 0.001"/>
+
+        <!-- <site name="box_site_1" pos="0.0651 -0.0651 -0.05" quat="0.2391 -0.8924 -0.3696 0.099"/> -->
+        <site name="box_site_1" pos="0.061 0.0 -0.05" quat="0.183 -0.683 -0.683 0.183"/>
+        <!-- <site name="box_site_2" pos="-0.0651 0.0651 -0.05" quat="0.099 -0.3696 0.8924 -0.2391"/> -->
+        <site name="box_site_2" pos="-0.061 -0.0 -0.05" quat="0.183 -0.683 0.683 -0.183"/>
+
+
+        <site name="frame_x" size="0.005" type="box" fromto="0 0 0.06  0.1 0 0.06" rgba="1 0 0 1" group="1"/>
+        <site name="frame_y" size="0.005" type="box" fromto="0 0 0.06  0 0.1 0.06" rgba="0 1 0 1" group="1"/> 
+        <site name="frame_z" size="0.005" type="box" fromto="0 0 0.06  0 0 0.15" rgba="0 0 1 1" group="1"/>
+
+        <!-- <body name="box_1" pos="0.0651 -0.0651 -0.05" quat="0.2391 -0.8924 -0.3696 0.099"> -->
+        <body name="box_1" pos="0.061 0.0 -0.05" quat="0.183 -0.683 -0.683 0.183">
+
+            <geom name="box_1_geom" rgba="0 0.6 0 0.6" size="0.01 0.01 0.01" type="box" contype="0" conaffinity="0"/>
+            <site name="frame_x_1" size="0.005" type="box" fromto="0 0 0  0.1 0 0" rgba="1 0 0 1" group="1"/>
+            <site name="frame_y_1" size="0.005" type="box" fromto="0 0 0  0 0.1 0" rgba="0 1 0 1" group="1"/> 
+            <site name="frame_z_1" size="0.005" type="box" fromto="0 0 0  0 0 0.1" rgba="0 0 1 1" group="1"/>
+        </body>
+
+        <!-- <body name="box_2" pos="-0.0651 0.0651 -0.05" quat="0.099 -0.3696 0.8924 -0.2391"> -->
+        <body name="box_2" pos="-0.061 -0.0 -0.05" quat="0.183 -0.683 0.683 -0.183">
+
+            <geom name="box_2_geom" rgba="0 0.6 0 1" size="0.01 0.01 0.01" type="box" contype="0" conaffinity="0"/>
+            <site name="frame_x_2" size="0.005" type="box" fromto="0 0 0  0.1 0 0" rgba="1 0 0 1" group="1"/>
+            <site name="frame_y_2" size="0.005" type="box" fromto="0 0 0  0 0.1 0" rgba="0 1 0 1" group="1"/> 
+            <site name="frame_z_2" size="0.005" type="box" fromto="0 0 0  0 0 0.1" rgba="0 0 1 1" group="1"/>
+        </body>
+    </body>
+
+    <!-- <body mocap="true" name="ball_pick" pos="-0.25 0.25 0.14" quat="1 0 0 0" >
+        <geom name="ball_pick" pos="0 0 0" rgba="0 0.6 0 1" size="0.1" type="sphere" mass="0.1" contype="0" conaffinity="2158718"/>
+    </body> -->
+
+    <!-- <body name="walls" pos="-0.25 -0.25 0.3" quat="1 0 0 0" gravcomp="1">
+        <joint name="walls" type="free"/>
+        <geom name="wall_0" pos="0 0 0.15" rgba="0.6 0 0 1" size="0.1 0.1 0.01" type="box" contype="2" conaffinity="0"/>
+        <geom name="wall_1" pos="0 0 -0.15" rgba="0.6 0 0 1" size="0.1 0.1 0.01" type="box" contype="2" conaffinity="0"/>
+        <geom name="wall_0" pos="0 0 0.15" rgba="0.6 0 0 1" size="0.1 0.1 0.01" type="box" contype="2" conaffinity="0"/>
+    </body> -->
+
+    <!-- <body name="wall" pos="-0.25 0.0 0.09" quat="1 0 0 0" >
+        <geom name="wall_0" pos="0 0 0" rgba="0.6 0 0 1" size="0.2 0.01 0.15" type="box" contype="2" conaffinity="0"/>
+    </body> -->
+
+    <!-- <body name="box" pos="-0.3 0.2 0.13" quat="1 0 0 0">
+        <joint name="box" type="free"/>
+        <geom name="box_col" pos="0 0 0" quat="0.70711 0.0 0.70711 0.0" rgba="0 0 0.6 1" size="0.1 0.2" type="capsule" contype="3" conaffinity="3"/>
+        <geom name="box" pos="0 0 0" rgba="0.6 0 0 1" size="0.3 0.1 0.1" type="box" contype="3" conaffinity="3"/>
+    </body> -->
+
+    <!-- <body name="area" pos="-0.25 -0.1 0.4">
+        <geom name="area" pos="0 0 0" rgba="1 1 1 0.6" size="0.2 0.3 0.25" type="box" contype="0" conaffinity="0"/>
+    </body> -->
+
+
+    <body name="center" pos="0 0 0" quat="0 0.70711 -0.70711 0">
+        <geom name="center" pos="0 0 0" rgba="1 1 1 0.1" size="0.01 0.01 0.1" type="box" contype="0" conaffinity="0"/>
+    </body>
+
+    <body mocap="true" name="obstacle" pos="-1 0 2" quat="0 0.70711 0.70711 0">
+        <geom name="obstacle" pos="0 0 0" rgba="0.6 0 0 1" size="0.05" type="sphere"/>
+    </body>
+
+    <body name="table0_marker" pos="-0.496 -0.575 0.05" >
+        <geom name="table0_marker" pos="0 0 0" rgba="1 1 1 0.6" size="0.05 0.05 0.025" type="box" contype="0" conaffinity="0"/>
+    </body>
+
+    <body name="table1_marker" pos="-0.956 0.335 0.03" >
+        <geom name="table1_marker" pos="0 0 0" rgba="1 1 1 0.6" size="0.04 0.04 0.015" type="box" contype="0" conaffinity="0"/>
+    </body>
+
+    
+</mujoco>
