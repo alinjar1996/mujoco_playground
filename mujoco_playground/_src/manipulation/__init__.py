@@ -40,6 +40,7 @@ _envs = {
     "PandaRobotiqPushCube": robotiq_push_cube.PandaRobotiqPushCube,
     "LeapCubeReorient": leap_cube_reorient.CubeReorient,
     "LeapCubeRotateZAxis": leap_rotate_z.CubeRotateZAxis,
+    "DualUR5eBallPick": None,  # Placeholder for the Dual UR5e Ball Pick environment.
 }
 
 _cfgs = {
