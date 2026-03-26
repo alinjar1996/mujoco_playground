@@ -26,6 +26,8 @@ import numpy as np
 from mujoco_playground._src import mjx_env
 from mujoco_playground._src.manipulation.dual_ur5e import ur5e_constants as consts
 
+import os
+
 
 def get_assets() -> Dict[str, bytes]:
   """Returns a dictionary of all assets used by the environment."""
@@ -39,7 +41,7 @@ def get_assets() -> Dict[str, bytes]:
   return assets
 
 
-class AlohaEnv(mjx_env.MjxEnv):
+class DualUR5eEnv(mjx_env.MjxEnv):
   """Base class for ALOHA environments."""
 
   def __init__(
@@ -51,16 +53,22 @@ class AlohaEnv(mjx_env.MjxEnv):
     super().__init__(config, config_overrides)
 
     self._model_assets = get_assets()
-    self._mj_model = mujoco.MjModel.from_xml_string(
-        epath.Path(xml_path).read_text(), assets=self._model_assets
-    )
+    # self._mj_model = mujoco.MjModel.from_xml_string(
+    #     epath.Path(xml_path).read_text(), assets=self._model_assets
+    # )
+
+
+    model_path = xml_path
+
+    self._mj_model = mujoco.MjModel.from_xml_path(model_path)
+
     self._mj_model.opt.timestep = self._config.sim_dt
 
     self._mj_model.vis.global_.offwidth = 3840
     self._mj_model.vis.global_.offheight = 2160
 
     self._mjx_model = mjx.put_model(self._mj_model, impl=self._config.impl)
-    self._xml_path = xml_path
+    self._xml_path = model_path
 
   
   def _post_init_dualur5e(self, keyframe: str = None):
