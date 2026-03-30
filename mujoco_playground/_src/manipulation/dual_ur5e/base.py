@@ -68,7 +68,10 @@ class DualUR5eEnv(mjx_env.MjxEnv):
     self._mj_model.vis.global_.offheight = 2160
 
     self._mjx_model = mjx.put_model(self._mj_model, impl=self._config.impl)
+
     self._xml_path = model_path
+
+    self._post_init_dualur5e()
 
   
   def _post_init_dualur5e(self, keyframe: str = None):
@@ -85,43 +88,46 @@ class DualUR5eEnv(mjx_env.MjxEnv):
 
     joint_names_pos = list()
     joint_names_vel = list()
-    for i in range(self.model.njnt):
-        joint_type = self.model.jnt_type[i]
+    for i in range(self._mj_model.njnt):
+        joint_type = self._mj_model.jnt_type[i]
         n_pos = 7 if joint_type == mujoco.mjtJoint.mjJNT_FREE else 4 if joint_type == mujoco.mjtJoint.mjJNT_BALL else 1
         n_vel = 6 if joint_type == mujoco.mjtJoint.mjJNT_FREE else 3 if joint_type == mujoco.mjtJoint.mjJNT_BALL else 1
         
         for _ in range(n_pos):
-            joint_names_pos.append(mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_JOINT, i))
+            joint_names_pos.append(mujoco.mj_id2name(self._mj_model, mujoco.mjtObj.mjOBJ_JOINT, i))
         for _ in range(n_vel):
-            joint_names_vel.append(mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_JOINT, i))
+            joint_names_vel.append(mujoco.mj_id2name(self._mj_model, mujoco.mjtObj.mjOBJ_JOINT, i))
 
     # ---------------------------
     # 🔹 Geoms
     # ---------------------------
-    self._table_geom = model.geom("table_0").id
+    # self._table_geom = model.geom("table_0").id
 
     self._init_q = jp.array([1.5, -1.8, 1.75, -1.25, -1.6, 0, -1.5, -1.8, 1.75, -1.25, -1.6, 0])
     self._init_ctrl =jp.zeros_like(self._init_q)
     # self._lowers, self._uppers = self.mj_model.actuator_ctrlrange.T
-    self._robot_joints = [self._mj_model.joint(j).id for j in consts.ARM_JOINTS]
+    # self._robot_joints = [self._mj_model.joint(j).id for j in consts.ARM_JOINTS]
+
+    self._robot_joints = consts.ARM_JOINTS
 
     self._joint_mask_pos = np.isin(joint_names_pos, self._robot_joints)
     self._joint_mask_vel = np.isin(joint_names_vel, self._robot_joints)
 
-    self._ball_qpos_idx = self.model.body_dofadr[self.model.body(name="ball").id]
+    self._ball_qpos_idx = self._mj_model.body_dofadr[self._mj_model.body(name="ball").id]
 
     # Robot geoms (already partially done in your code)
     self._robot_geom_ids = [
-        i for i in range(model.ngeom)
-        if mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, i)
-        and mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_GEOM, i).startswith("robot")
+        i for i in range(self._mj_model.ngeom)
+        if mujoco.mj_id2name(self._mj_model, mujoco.mjtObj.mjOBJ_GEOM, i)
+        and mujoco.mj_id2name(self._mj_model, mujoco.mjtObj.mjOBJ_GEOM, i).startswith("robot")
     ]
 
-    self._arm_qadr = jp.array(
-        [self._mj_model.jnt_qposadr[joint_id] for joint_id in self._robot_geom_ids]
-    )
+    # self._arm_qadr = jp.array(
+    #     [self._mj_model.jnt_qposadr[joint_id] for joint_id in self._robot_geom_ids]
+    # )
+    data = mujoco.MjData(self._mj_model)
 
-    self._ball_init_pose = self.data.qpos[self._ball_qpos_idx:self._ball_qpos_idx+7].copy()
+    self._ball_init_pose = data.qpos[self._ball_qpos_idx:self._ball_qpos_idx+7].copy()
     self._ball_base_pose = self._ball_init_pose.copy()
 
     # ---------------------------
@@ -136,8 +142,9 @@ class DualUR5eEnv(mjx_env.MjxEnv):
 
   @property
   def action_size(self) -> int:
-    return self._mjx_model.nu
-
+    # return self._mjx_model.nv
+    return int(np.sum(self._joint_mask_vel))
+  
   @property
   def mj_model(self) -> mujoco.MjModel:
     return self._mj_model

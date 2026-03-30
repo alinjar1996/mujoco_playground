@@ -74,7 +74,7 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
 
 
 
-        self.num_batch=2000
+        self.num_batch=1
         self.num_steps=12
         self.maxiter_cem=3
         self.maxiter_projection=5
@@ -125,58 +125,52 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
         # self._mj_model = mjx_env.MjxModel(self._mj_model)
 
   
-        joint_names_pos = list()
-        joint_names_vel = list()
-        for i in range(self._mj_model.njnt):
-            joint_type = self._mj_model.jnt_type[i]
-            n_pos = 7 if joint_type == mujoco.mjtJoint.mjJNT_FREE else 4 if joint_type == mujoco.mjtJoint.mjJNT_BALL else 1
-            n_vel = 6 if joint_type == mujoco.mjtJoint.mjJNT_FREE else 3 if joint_type == mujoco.mjtJoint.mjJNT_BALL else 1
+        # joint_names_pos = list()
+        # joint_names_vel = list()
+        # for i in range(self._mj_model.njnt):
+        #     joint_type = self._mj_model.jnt_type[i]
+        #     n_pos = 7 if joint_type == mujoco.mjtJoint.mjJNT_FREE else 4 if joint_type == mujoco.mjtJoint.mjJNT_BALL else 1
+        #     n_vel = 6 if joint_type == mujoco.mjtJoint.mjJNT_FREE else 3 if joint_type == mujoco.mjtJoint.mjJNT_BALL else 1
             
-            for _ in range(n_pos):
-                joint_names_pos.append(mujoco.mj_id2name(self._mj_model, mujoco.mjtObj.mjOBJ_JOINT, i))
-            for _ in range(n_vel):
-                joint_names_vel.append(mujoco.mj_id2name(self._mj_model, mujoco.mjtObj.mjOBJ_JOINT, i))
+        #     for _ in range(n_pos):
+        #         joint_names_pos.append(mujoco.mj_id2name(self._mj_model, mujoco.mjtObj.mjOBJ_JOINT, i))
+        #     for _ in range(n_vel):
+        #         joint_names_vel.append(mujoco.mj_id2name(self._mj_model, mujoco.mjtObj.mjOBJ_JOINT, i))
         
         
-        robot_joints = np.array(['shoulder_pan_joint_1', 'shoulder_lift_joint_1', 'elbow_joint_1', 'wrist_1_joint_1', 'wrist_2_joint_1', 'wrist_3_joint_1',
-                                'shoulder_pan_joint_2', 'shoulder_lift_joint_2', 'elbow_joint_2', 'wrist_1_joint_2', 'wrist_2_joint_2', 'wrist_3_joint_2'])
+        # robot_joints = np.array(['shoulder_pan_joint_1', 'shoulder_lift_joint_1', 'elbow_joint_1', 'wrist_1_joint_1', 'wrist_2_joint_1', 'wrist_3_joint_1',
+        #                         'shoulder_pan_joint_2', 'shoulder_lift_joint_2', 'elbow_joint_2', 'wrist_1_joint_2', 'wrist_2_joint_2', 'wrist_3_joint_2'])
         
-        self.joint_mask_pos = np.isin(joint_names_pos, robot_joints)
-        self.joint_mask_vel = np.isin(joint_names_vel, robot_joints)
+        # self.joint_mask_pos = np.isin(joint_names_pos, robot_joints)
+        # self.joint_mask_vel = np.isin(joint_names_vel, robot_joints)
 
-        self.ball_qpos_idx = self._mj_model.body_dofadr[self._mj_model.body(name="ball").id]
+        data=mujoco.MjData(self._mj_model)
 
-        self.data = mujoco.MjData(self._mj_model)
+        self.joint_mask_pos = self._joint_mask_pos
+        self.joint_mask_vel = self._joint_mask_vel
 
-        self.data.qpos[self.joint_mask_pos] = self.init_joint_position
+        # self.ball_qpos_idx = self._mj_model.body_dofadr[self._mj_model.body(name="ball").id]
 
+        # self.data = mujoco.MjData(self._mj_model)
 
-        mujoco.mj_forward(self._mj_model, self.data)
-
-        self.ball_init_pose = self.data.qpos[self.ball_qpos_idx:self.ball_qpos_idx+7].copy()
-        self.ball_base_pose = self.ball_init_pose.copy()
-
-        ball_init_pose = jp.array(self.ball_base_pose)
-
-        ball_init_pose = ball_init_pose.at[:2].add(
-            jp.array(self.ball_init_pos_noise[:2])
-        )
-
-        
-        # self.success = 0
-        # self.reason = 'na'
-
-        
-
-        self.flow_inference = False
-        self.flow_inference_fraction = 0.8 if self.flow_inference else 0
+        # self.data.qpos[self.joint_mask_pos] = self.init_joint_position
 
 
-        
+        # mujoco.mj_forward(self._mj_model, self.data)
+
+        # self.ball_init_pose = self.data.qpos[self.ball_qpos_idx:self.ball_qpos_idx+7].copy()
+        # self.ball_base_pose = self.ball_init_pose.copy()
+
+        # ball_init_pose =  jp.array(self._ball_base_pose) #jp.array(self.ball_base_pose)
+
+        # ball_init_pose = ball_init_pose.at[:2].add(
+        #     jp.array(self.ball_init_pos_noise[:2])
+        # )
+
 # Initialize CEM/MPC planner
         self.planner = run_cem_planner(
             model=self._mj_model,
-            data=self.data,
+            data=data,
             num_dof=self.num_dof,
             num_batch=self.num_batch,
             num_steps=self.num_steps,
@@ -187,6 +181,8 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
             position_threshold=self.position_threshold,
             rotation_threshold=self.rotation_threshold
         )
+
+        
 
         self.robot_geom_ids = set()
 
@@ -264,8 +260,8 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
         ball_qpos_idx = self._mj_model.body_dofadr[self._mj_model.body(name="ball").id]
 
         
-        ball_base_pose = self.ball_base_pose  # already stored as numpy
-        ball_init_pose = jp.array(ball_base_pose)
+        ball_base_pose =jp.array(self._ball_base_pose)  # already stored as numpy
+        ball_init_pose = ball_base_pose
 
         ball_init_pos_noise = jp.full(3, 0.01)
 
@@ -306,9 +302,14 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
         data = mjx_env.make_data(
             self._mj_model,
             qpos=qpos,
-            qvel=qvel
+            qvel=qvel,
+            ctrl=jp.zeros((self._mjx_model.nu,), dtype=jp.float32)
         #    impl=self._mjx_model.impl.value,
         )
+
+        # data = data.replace(ctrl=jp.zeros((self._mjx_model.nu,), dtype=jp.float32))
+
+
 
         data = data.replace(
             mocap_pos=data.mocap_pos.at[self._mj_model.body_mocapid[self._mj_model.body(name='target_0').id]].set(target_pos),
@@ -343,7 +344,7 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
 
         info = {
             'rng': rng,
-            '_steps': jp.array(0),
+            '_steps': jp.array(0, dtype=int),
 
             # planner state
             'xi_cov': xi_cov,
@@ -361,7 +362,9 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
             'penalty_col': jp.array(0.0),
             'penalty_collision_real_time': jp.array(0.0),
             # 'target_0': self.planner.target_0,
-            'target_0': jp.concatenate([target_pos, target_rot])
+            'target_0': jp.concatenate([target_pos, target_rot]),
+            'prev_potential': jp.array(0.0, dtype=float),
+            
         }
 
         obs = self._get_obs(data, info)
@@ -399,9 +402,9 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
 
 
         newly_reset = state.info['_steps'] == 0
-        state.info['episode_picked'] = jp.where(
-            newly_reset, 0, state.info['episode_picked']
-        )
+        # state.info['episode_picked'] = jp.where(
+        #     newly_reset, 0, state.info['episode_picked']
+        # )
         state.info['prev_potential'] = jp.where(
             newly_reset, 0.0, state.info['prev_potential']
         )
@@ -416,8 +419,16 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
         # Update data with new velocities
         data = state.data.replace(qvel=qvel)
 
+        # data = data.replace(ctrl=jp.zeros((self._mjx_model.nu,), dtype=jp.float32))
+
         # Step physics
-        data = mjx_env.step(self._mjx_model,data,self.n_substeps)
+        data = mjx_env.step(model = self._mjx_model,
+                            data =data,
+                            action=jp.zeros((self._mjx_model.nu,), dtype=jp.float32),  # No Torque control  
+                            n_substeps = self.n_substeps)
+
+        # ✅ CRITICAL: enforce ctrl AFTER step
+        # data = data.replace(ctrl=jp.zeros((self._mjx_model.nu,), dtype=jp.float32))
 
         # raw_rewards, success = self._get_reward(data, state.info)
         raw_rewards = self._get_reward(data, state.info)
@@ -481,33 +492,68 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
 
         cost_g_ball = jp.linalg.norm(state.data.xpos[self._mj_model.body(name='ball').id] - info['target_0'][:3])
         cost_r_ball = jp.linalg.norm(state.data.xquat[self._mj_model.body(name='ball').id] - info['target_0'][3:])
+        
 
-
-        if task==0: # pick task
+        def pick_branch(_):
             target_reached = (
-                    current_cost_g < self.grab_pos_thresh \
-                    # and cost_dist < 0.04 \
-                    and current_cost_r_0 < self.grab_rot_thresh \
-                    and current_cost_r_1 < self.grab_rot_thresh
+                (current_cost_g < self.grab_pos_thresh) &
+                (current_cost_r_0 < self.grab_rot_thresh) &
+                (current_cost_r_1 < self.grab_rot_thresh)
             )
 
-            if target_reached:
-                task = 1  # move task
+            new_task = jp.where(target_reached, 1, task)
 
-        elif task == 1:  # move task
-            target_reached = cost_g_ball < 0.04 and cost_r_ball<0.1
-            if target_reached:
-                print("======================= TARGET REACHED =======================", flush=True)
-                success = 1
-                reason = REASON_OK
-                # self.reset_simulation()
+            return new_task, success, reason, penalty_z, target_reached
+
+
+        def move_branch(_):
+            target_reached = (cost_g_ball < 0.04) & (cost_r_ball < 0.1)
+
+            success_new = jp.where(target_reached, 1, success)
+            reason_new = jp.where(target_reached, REASON_OK, reason)
+
+            fall_condition = current_cost_g > 0.2
+
+            success_new = jp.where(fall_condition, 0, success_new)
+            reason_new = jp.where(fall_condition, REASON_FALL, reason_new)
+            penalty_z_new = jp.where(fall_condition, penalty_z + 5.0, penalty_z)
+
+            return task, success_new, reason_new, penalty_z_new, target_reached
+
+
+        task, success, reason, penalty_z, target_reached = jax.lax.cond(
+            task == 0,
+            pick_branch,
+            move_branch,
+            operand=None
+        )
+        
+        # # jp.where(a)
+        # if task==0: # pick task
+        #     target_reached = (
+        #             current_cost_g < self.grab_pos_thresh \
+        #             # and cost_dist < 0.04 \
+        #             and current_cost_r_0 < self.grab_rot_thresh \
+        #             and current_cost_r_1 < self.grab_rot_thresh
+        #     )
+
+        #     if target_reached:
+        #         task = 1  # move task
+
+        # elif task == 1:  # move task
+        #     target_reached = cost_g_ball < 0.04 and cost_r_ball<0.1
+        #     if target_reached:
+        #         print("======================= TARGET REACHED =======================", flush=True)
+        #         success = 1
+        #         reason = REASON_OK
+        #         # self.reset_simulation()
                 
-            elif current_cost_g > 0.2:
-                print("======================= TARGET FAILED: BALL FALL =======================", flush=True)
-                success = 0
-                reason = REASON_FALL
-                penalty_z += 5.0
-                # self.reset_simulation()
+        #     elif current_cost_g > 0.2:
+        #         print("======================= TARGET FAILED: BALL FALL =======================", flush=True)
+        #         success = 0
+        #         reason = REASON_FALL
+        #         penalty_z += 5.0
+        #         # self.reset_simulation()
         
         # if time.time() - info['time'] > 30:
         #     print("======================= TARGET FAILED: TIMEOUT =======================", flush=True)
@@ -515,12 +561,18 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
         #     reason = REASON_TIMEOUT
         #     # self.reset_simulation()
 
-        if cost_c > 300:
-            print("======================= TARGET FAILED: COLLISION =======================", flush=True)
-            success = 0
-            reason = REASON_COLLISION
-            penalty_col += 0.5
-            # self.reset_simulation()
+        # if cost_c > 300:
+        #     print("======================= TARGET FAILED: COLLISION =======================", flush=True)
+        #     success = 0
+        #     reason = REASON_COLLISION
+        #     penalty_col += 0.5
+        #     # self.reset_simulation()
+
+        collision_fail = cost_c > 300
+
+        success = jp.where(collision_fail, 0, success)
+        reason = jp.where(collision_fail, REASON_COLLISION, reason)
+        penalty_col = jp.where(collision_fail, penalty_col + 0.5, penalty_col)
         
         out_of_bounds = jp.isnan(data.qpos).any() | jp.isnan(data.qvel).any()
         
@@ -583,10 +635,10 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
 
         target_ball_dest = info['target_0']
 
-        ball_pos = data.qpos[self.ball_qpos_idx:self.ball_qpos_idx+3]
+        ball_pos = data.qpos[self._ball_qpos_idx:self._ball_qpos_idx+3]
         
-        ball_pick_init = self.ball_init_pose[:3]
-        cost_weights = None 
+        ball_pick_init = self._ball_init_pose[:3]
+        cost_weights = None
 
         cost_task_weights = {'pick': 0,'move': 0}
         # cost_task_weights = 
@@ -648,7 +700,7 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
             'collision': - (cost_list[0]+cost_list[1]),
             'theta': - cost_list[2],
             'velocity': -cost_list[3],
-            'z-axis': -cost_list[4],
+            'z_axis': -cost_list[4],
             'distance': -(cost_list[5]+10*cost_list[6]),
             'orientation': -cost_list[7],
             'eef_to_obj': -cost_list[8],
@@ -675,40 +727,71 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
         ])
 
         return obs
-
     
-    def _collision_check(self,  state:mjx_env.State):
+    def _collision_check(self, state: mjx_env.State):
+        contact = state.data.contact
 
-        has_collision = False
-        penalty_collision_real_time = 0
-        num_penetration = 0
+        geom1 = contact.geom1
+        geom2 = contact.geom2
+        dist = contact.dist
 
-        for i in range(state.data.ncon):
-            contact = state.data.contact[i]
+        # mask: robot involved
+        robot_geom_ids = jp.array(list(self._robot_geom_ids))
 
-            if (contact.geom1 in self.robot_geom_ids or
-                contact.geom2 in self.robot_geom_ids):
+        is_robot_1 = jp.isin(geom1, robot_geom_ids)
+        is_robot_2 = jp.isin(geom2, robot_geom_ids)
 
-                if contact.dist < -1e-6:   # penetration threshold
-                    has_collision = True
-                    
-                    num_penetration+=1
+        is_robot_contact = is_robot_1 | is_robot_2
 
-                    name1 = mujoco.mj_id2name(
-                        self._mj_model, mujoco.mjtObj.mjOBJ_GEOM, contact.geom1)
-                    name2 = mujoco.mj_id2name(
-                        self._mj_model, mujoco.mjtObj.mjOBJ_GEOM, contact.geom2)
-                    if state.info['task'] == 0:
-                        print(f"Collision detected between {name1} and {name2}")
-                    # break
+        # penetration condition
+        penetration = dist < -1e-6
 
-        if has_collision and state.info['task'] == 0:
-            print("================== COLLISION (SIM) ==================", flush=True)
-            # self.success = 0
-            # self.reason = REASON_COLLISION
-            # self.reset_simulation()
-            penalty_collision_real_time = 10*num_penetration
+        # valid collisions
+        collisions = is_robot_contact & penetration
+
+        num_penetration = jp.sum(collisions)
+
+        penalty_collision_real_time = jp.where(
+            num_penetration > 0,
+            10.0 * num_penetration,
+            0.0
+        )
 
         return penalty_collision_real_time
+
+    
+    # def _collision_check(self,  state:mjx_env.State):
+
+    #     has_collision = False
+    #     penalty_collision_real_time = 0
+    #     num_penetration = 0
+
+    #     for i in range(state.data.ncon):
+    #         contact = state.data.contact[i]
+
+    #         if (contact.geom1 in self.robot_geom_ids or
+    #             contact.geom2 in self.robot_geom_ids):
+
+    #             if contact.dist < -1e-6:   # penetration threshold
+    #                 has_collision = True
+                    
+    #                 num_penetration+=1
+
+    #                 name1 = mujoco.mj_id2name(
+    #                     self._mj_model, mujoco.mjtObj.mjOBJ_GEOM, contact.geom1)
+    #                 name2 = mujoco.mj_id2name(
+    #                     self._mj_model, mujoco.mjtObj.mjOBJ_GEOM, contact.geom2)
+    #                 if state.info['task'] == 0:
+    #                     print(f"Collision detected between {name1} and {name2}")
+    #                 # break
+
+    #     if has_collision and state.info['task'] == 0:
+    #         print("================== COLLISION (SIM) ==================", flush=True)
+    #         # self.success = 0
+    #         # self.reason = REASON_COLLISION
+    #         # self.reset_simulation()
+    #         penalty_collision_real_time = 10*num_penetration
+
+    #     return penalty_collision_real_time
 
     
