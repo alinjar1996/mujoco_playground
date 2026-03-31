@@ -36,8 +36,9 @@ def default_config() -> config_dict.ConfigDict:
             orientation=4.0,
             eef_to_obj=7.0,
             obj_to_targ=3.0,
-            eef_to_obj_move=3.0,
+            # eef_to_obj_move=3.0,
             object_orientation=6.0,
+            smoothness=0.1,
             ),
         ),
 
@@ -74,9 +75,9 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
 
 
 
-        self.num_batch=1
+        self.num_batch=10
         self.num_steps=12
-        self.maxiter_cem=3
+        self.maxiter_cem=1
         self.maxiter_projection=5
         self.num_elite=0.5
         self.sim_timestep=config.sim_dt
@@ -208,6 +209,21 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
             self.viewer.cam.azimuth = 90.0 
             self.viewer.cam.elevation = -30.0
     
+    def _build_cost_weights(self, scales):
+        return jp.array([
+            scales.collision,        # cost_c_pick
+            scales.collision,        # cost_c_move
+            scales.theta,            # cost_theta
+            scales.velocity,         # cost_eef_vel
+            scales.z_axis,           # cost_eef_pos
+            scales.distance,         # cost_dist (pick)
+            scales.distance,         # cost_dist (move)
+            scales.orientation,      # cost_r
+            scales.eef_to_obj,       # cost_g_move
+            scales.obj_to_targ,      # obj_goal_dist
+            scales.object_orientation, # cost_ball_pose
+            scales.smoothness          # smoothness (ADD THIS!)
+        ])
     
     
     def _generate_targets(self, rng):
@@ -364,6 +380,7 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
             # 'target_0': self.planner.target_0,
             'target_0': jp.concatenate([target_pos, target_rot]),
             'prev_potential': jp.array(0.0, dtype=float),
+            'prev_reward': jp.array(0.0, dtype=float),
             
         }
 
@@ -387,11 +404,99 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
             info,
         )
     
+    # def _run_cem_planning(self, data: mjx.Data, info: Dict[str, Any]) -> tuple:
+    #     """Run CEM planning iterations and return the best first-step action and updated planner state."""
+
+    #     xi_mean = info['xi_mean']
+    #     xi_cov = info['xi_cov']
+
+    #     init_pos = data.qpos[self.joint_mask_pos]
+    #     init_vel = data.qvel[self.joint_mask_vel]
+
+    #     target_ball_dest = info['target_0']
+    #     ball_pos = data.qpos[self._ball_qpos_idx:self._ball_qpos_idx + 3]
+    #     ball_pick_init = self._ball_init_pose[:3]
+
+    #     cost_weights = None
+    #     cost_task_weights = {'pick': 0, 'move': 0}
+
+    #     thetadot_init = jp.tile(init_vel, (self.num_batch, 1))
+    #     state_term = thetadot_init
+
+    #     rng = info['rng']
+    #     rng, subkey = jax.random.split(rng)
+
+    #     # Generate fresh samples from current distribution
+    #     xi_samples, subkey = self.planner.cem.compute_xi_samples(subkey, xi_mean, xi_cov)
+
+    #     carry = (xi_mean, xi_cov, subkey, state_term,
+    #              self.planner.lamda_init, self.planner.s_init, xi_samples,
+    #              init_pos, init_vel, target_ball_dest,
+    #              ball_pos, ball_pick_init, cost_weights, cost_task_weights)
+
+    #     scan_over = jp.array([0] * self.maxiter_cem)
+
+    #     carry, out = jax.lax.scan(self.planner.cem.cem_iter, carry, scan_over, length=self.maxiter_cem)
+    #     (cost_batch, cost_list_batch, thetadot, theta,
+    #      avg_res_primal, avg_res_fixed, primal_residuals, fixed_point_residuals,
+    #      ball, eef_0, eef_1) = out
+
+    #     # Extract best sample from last CEM iteration
+    #     idx_min = jp.argmin(cost_batch[-1])
+    #     # best_vels shape: (num_steps, num_dof)
+    #     best_vels = thetadot[-1][idx_min].reshape((self.num_dof, self.planner.cem.num)).T
+
+    #     # Extract action: mean of first few steps (matching mpc_planner.compute_control)
+    #     cem_action = jp.mean(best_vels[1:6], axis=0)
+
+    #     # Updated planner state from carry
+    #     xi_mean_new = carry[0]
+    #     xi_cov_new = carry[1]
+
+    #     # Best cost breakdown for reward
+    #     best_cost_list = cost_list_batch[-1][idx_min]
+
+    #     return cem_action, xi_mean_new, xi_cov_new, rng, best_cost_list
+    
+    def _run_cem_planning(self, data: mjx.Data, info: Dict[str, Any]) -> tuple:
+        """Run CEM planning iterations and return the best first-step action and updated planner state."""
+        task = info['task']
+        cost_task_weights = {
+            'pick': (task == 0).astype(jp.float32),
+            'move': (task == 1).astype(jp.float32),
+        }
+        out = self.planner.cem.compute_cem(xi_mean=info['xi_mean'],
+                                    xi_cov=info['xi_cov'],
+                                    init_pos=data.qpos[self.joint_mask_pos],
+                                    init_vel=data.qvel[self.joint_mask_vel],
+                                    init_acc=jp.zeros_like(data.qvel[self.joint_mask_vel]),
+                                    target_ball_dest=info['target_0'],
+                                    ball_pos=data.qpos[self._ball_qpos_idx:self._ball_qpos_idx + 3],
+                                    ball_pick_init=self._ball_init_pose[:3],
+                                    lamda_init=self.planner.lamda_init,
+                                    s_init=self.planner.s_init,
+                                    xi_samples=self.planner.xi_samples,
+                                    cost_weights=self._build_cost_weights(self._config.reward_config.scales),
+                                    cost_task_weights=cost_task_weights
+                                    )
+        
+        (cost, best_cost_list, best_vels, best_traj, xi_mean, xi_cov, thetadot, theta,
+		avg_res_primal,avg_res_fixed,primal_residuals,fixed_point_residuals,idx_min,
+		ball_out, eef_0_planned,eef_1_planned,eef_0,eef_1) = out
+
+        cem_action = jp.mean(best_vels[1:6], axis=0)
+
+        return cem_action, xi_mean, xi_cov, best_cost_list
+
+       
+
     def step(self, state: mjx_env.State, action: jax.Array) -> mjx_env.State:
 
         info = state.info.copy()
 
         task = info['task']
+
+        
         success = info['success']
         reason = info['reason']
 
@@ -402,36 +507,60 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
 
 
         newly_reset = state.info['_steps'] == 0
-        # state.info['episode_picked'] = jp.where(
-        #     newly_reset, 0, state.info['episode_picked']
-        # )
         state.info['prev_potential'] = jp.where(
             newly_reset, 0.0, state.info['prev_potential']
         )
 
+        # ---- Run CEM planning to get optimal joint velocities ----
+        (cem_action, xi_mean_new, 
+         xi_cov_new, best_cost_list) = self._run_cem_planning(state.data, state.info)
+        
+        
 
-        # Scale action → joint velocities
+        #  xi_mean, 
+		# xi_cov,
+		# init_pos, 
+		# init_vel, 
+		# init_acc,
+		# target_ball_dest,
+		# ball_pos,
+		# ball_pick_init,
+		# lamda_init,
+		# s_init,
+		# xi_samples,
+		# cost_weights,
+		# cost_task_weights
+
+        # Update planner state in info
+        info['xi_mean'] = xi_mean_new
+        info['xi_cov'] = xi_cov_new
+
+        # Apply CEM-optimized velocities on controlled joints
         qvel = state.data.qvel
-
-        # Apply only on controlled joints
-        qvel = qvel.at[self.joint_mask_vel].set(action * self._config.action_scale)
+        qvel = qvel.at[self.joint_mask_vel].set(cem_action + action*self._config.action_scale)  # Add low-level action for exploration (scaled)
 
         # Update data with new velocities
         data = state.data.replace(qvel=qvel)
 
-        # data = data.replace(ctrl=jp.zeros((self._mjx_model.nu,), dtype=jp.float32))
-
-        # Step physics
+        # Step physics (no torque control, velocity-driven)
         data = mjx_env.step(model = self._mjx_model,
                             data =data,
-                            action=jp.zeros((self._mjx_model.nu,), dtype=jp.float32),  # No Torque control  
+                            action=jp.zeros((self._mjx_model.nu,), dtype=jp.float32),
                             n_substeps = self.n_substeps)
 
-        # ✅ CRITICAL: enforce ctrl AFTER step
-        # data = data.replace(ctrl=jp.zeros((self._mjx_model.nu,), dtype=jp.float32))
-
-        # raw_rewards, success = self._get_reward(data, state.info)
-        raw_rewards = self._get_reward(data, state.info)
+        # Compute reward from CEM cost breakdown
+        raw_rewards = {
+            'collision': -(best_cost_list[0] + best_cost_list[1]),
+            'theta': -best_cost_list[2],
+            'velocity': -best_cost_list[3],
+            'z_axis': -best_cost_list[4],
+            'distance': -(best_cost_list[5] + 10 * best_cost_list[6]),
+            'orientation': -best_cost_list[7],
+            'eef_to_obj': -best_cost_list[8],
+            'obj_to_targ': -best_cost_list[9],
+            # 'eef_to_obj_move': -best_cost_list[10],
+            'object_orientation': -best_cost_list[10],
+        }
 
         rewards = {
             k: v * self._config.reward_config.scales[k]
@@ -441,17 +570,21 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
             self._config.reward_config.scales.values()
         )
 
-        # # Reward progress. Clip at zero to not penalize mistakes like dropping
-        # # during exploration.
+        # # # Reward progress. Clip at zero to not penalize mistakes like dropping
+        # # # during exploration.
         reward = jp.maximum(
             potential - state.info['prev_potential'], jp.zeros_like(potential)
         )
-
-
+        
+        #Not using potential in Rewards as of now, using raw rewards directly for better interpretability and debugging.
+        reward = sum(rewards.values())
 
         state.info['prev_potential'] = jp.maximum(
             potential, state.info['prev_potential']
         )
+
+        state.info['prev_rewards'] = rewards
+
 
         reward = jp.where(newly_reset, 0.0, reward)  # Prevent first-step artifact
 
@@ -638,7 +771,7 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
         ball_pos = data.qpos[self._ball_qpos_idx:self._ball_qpos_idx+3]
         
         ball_pick_init = self._ball_init_pose[:3]
-        cost_weights = None
+        cost_weights = self._build_cost_weights(self._config.reward_config.scales)
 
         cost_task_weights = {'pick': 0,'move': 0}
         # cost_task_weights = 
@@ -705,8 +838,8 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
             'orientation': -cost_list[7],
             'eef_to_obj': -cost_list[8],
             'obj_to_targ': -cost_list[9],
-            'eef_to_obj_move': -cost_list[10],
-            'object_orientation': -cost_list[11],
+            # 'eef_to_obj_move': -cost_list[10],
+            'object_orientation': -cost_list[10],
         }
 
         return rewards
