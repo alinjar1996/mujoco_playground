@@ -346,7 +346,7 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
 
         obs = self._get_obs(data, info)
 
-        print("obs shape:", obs.shape)
+        # print("obs shape:", obs.shape)
 
         reward, done = jp.zeros(2)
 
@@ -420,7 +420,7 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
         raw_weights = action
 
         self.cost_weights = jax.nn.softmax(raw_weights) * self._config.action_scale
-        
+
         # state.info['cost_weights'] = cost_weights
 
 
@@ -553,7 +553,10 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
             self._config.reward_config.scales.values()
         )
 
-        reward = jp.maximum(potential - state.info['prev_potential'], jp.zeros_like(potential))
+        # reward = jp.maximum(potential - state.info['prev_potential'], jp.zeros_like(potential))
+        
+        reward = potential - state.info['prev_potential']
+        
 
 
         state.info['_steps'] += self._config.action_repeat
@@ -619,7 +622,11 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
             ),
         ])
 
-        return obs
+        # return obs
+        return {
+        "state": obs,
+        "privileged_state": obs,
+    }
     
     def _collision_check(self, state: mjx_env.State):
         contact = state.data.contact
