@@ -28,17 +28,16 @@ def default_config() -> config_dict.ConfigDict:
       
       reward_config=config_dict.create(
         scales=config_dict.create(
-            collision=500,
-            theta=0.3,
-            velocity=0.1,
-            z_axis=10.0,
-            distance=5.0,
-            orientation=4.0,
-            eef_to_obj=7.0,
-            obj_to_targ=3.0,
-            # eef_to_obj_move=3.0,
-            object_orientation=6.0,
-            smoothness=0.1,
+            robot_eef_pos=1.0,
+            robot_eef_rot=1.0,
+            box_target_pos=1.0,
+            box_target_rot=1.0,
+            box_pick_success=20.0,
+            box_reach_success=40.0,
+            collision_real_time=5.0,
+            collision_plan_horizon=1.0,
+            fall_plan_horizon=1.0,
+            r_s_plan_horizon=1.0,
             ),
         ),
 
@@ -73,11 +72,9 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
 
         print("INIT NOISE", self.init_noise)
 
-
-
-        self.num_batch=10
+        self.num_batch=100
         self.num_steps=12
-        self.maxiter_cem=1
+        self.maxiter_cem=2
         self.maxiter_projection=5
         self.num_elite=0.5
         self.sim_timestep=config.sim_dt
@@ -89,84 +86,35 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
         self.flow_inference_fraction = 0.8 if self.flow_inference else 0.0
 
 
-        
-
-
-
         self.grab_pos_thresh = 0.05
         self.grab_rot_thresh = 0.1
         self.grab_dist_thresh = 0.05
         self.thetadot = jp.zeros(self.num_dof)
-        
 
-        # Initialize robot connection
-        self.rtde_c_0 = None
-        self.rtde_r_0 = None
 
-        self.rtde_c_1 = None
-        self.rtde_r_1 = None
-
-        self.grippers = {
-            '0': {
-                'srv': None,
-                'state': 'open'
-            },
-            '1': {
-                'srv': None,
-                'state': 'open'
-            }
+        self.cost_weights = {
+            'collision_pick': 500,
+            'collision_move': 500,
+            'theta': 0.3,
+            'velocity': 0.1,
+            'z_axis': 10.0,
+            'distance_pick': 5.0,
+            'distance_move': 5.0,
+            'orientation': 4.0,
+            'eef_to_obj': 7.0,
+            'obj_to_targ': 3.0,
+            # eef_to_obj_move=3.0,
+            'object_orientation': 6.0,
+            'smoothness': 0.1,
         }
-
-
-        # model_path = os.path.abspath("../../mujoco_playground/_src/manipulation/dual_ur5e/xmls/scene.xml")
-
-        # self._mj_model = mujoco.MjModel.from_xml_path(model_path)
-        # self._mj_model.opt.timestep = self.timestep #self.timestep
-
-        # self._mj_model = mjx_env.MjxModel(self._mj_model)
-
-  
-        # joint_names_pos = list()
-        # joint_names_vel = list()
-        # for i in range(self._mj_model.njnt):
-        #     joint_type = self._mj_model.jnt_type[i]
-        #     n_pos = 7 if joint_type == mujoco.mjtJoint.mjJNT_FREE else 4 if joint_type == mujoco.mjtJoint.mjJNT_BALL else 1
-        #     n_vel = 6 if joint_type == mujoco.mjtJoint.mjJNT_FREE else 3 if joint_type == mujoco.mjtJoint.mjJNT_BALL else 1
-            
-        #     for _ in range(n_pos):
-        #         joint_names_pos.append(mujoco.mj_id2name(self._mj_model, mujoco.mjtObj.mjOBJ_JOINT, i))
-        #     for _ in range(n_vel):
-        #         joint_names_vel.append(mujoco.mj_id2name(self._mj_model, mujoco.mjtObj.mjOBJ_JOINT, i))
         
-        
-        # robot_joints = np.array(['shoulder_pan_joint_1', 'shoulder_lift_joint_1', 'elbow_joint_1', 'wrist_1_joint_1', 'wrist_2_joint_1', 'wrist_3_joint_1',
-        #                         'shoulder_pan_joint_2', 'shoulder_lift_joint_2', 'elbow_joint_2', 'wrist_1_joint_2', 'wrist_2_joint_2', 'wrist_3_joint_2'])
-        
-        # self.joint_mask_pos = np.isin(joint_names_pos, robot_joints)
-        # self.joint_mask_vel = np.isin(joint_names_vel, robot_joints)
 
         data=mujoco.MjData(self._mj_model)
 
         self.joint_mask_pos = self._joint_mask_pos
         self.joint_mask_vel = self._joint_mask_vel
 
-        # self.ball_qpos_idx = self._mj_model.body_dofadr[self._mj_model.body(name="ball").id]
 
-        # self.data = mujoco.MjData(self._mj_model)
-
-        # self.data.qpos[self.joint_mask_pos] = self.init_joint_position
-
-
-        # mujoco.mj_forward(self._mj_model, self.data)
-
-        # self.ball_init_pose = self.data.qpos[self.ball_qpos_idx:self.ball_qpos_idx+7].copy()
-        # self.ball_base_pose = self.ball_init_pose.copy()
-
-        # ball_init_pose =  jp.array(self._ball_base_pose) #jp.array(self.ball_base_pose)
-
-        # ball_init_pose = ball_init_pose.at[:2].add(
-        #     jp.array(self.ball_init_pos_noise[:2])
-        # )
 
 # Initialize CEM/MPC planner
         self.planner = run_cem_planner(
@@ -192,37 +140,43 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
             if name and name.startswith("robot"):
                 self.robot_geom_ids.add(i)
 
-        # self.reset_simulation()
 
         
 
-        # Planning timer - runs at lower frequency
-        
-        # Control timer - runs at simulation frequency
-        
-        if view:
-        # Setup viewer
-            self.viewer = mujoco.viewer.launch_passive(self._mj_model, self.data)
-            self.viewer.opt.flags[mujoco.mjtVisFlag.mjVIS_CONTACTPOINT] = True
-            self.viewer.cam.lookat[:] = self._mj_model.body(name='table_0').pos
-            self.viewer.cam.distance = 3.0 
-            self.viewer.cam.azimuth = 90.0 
-            self.viewer.cam.elevation = -30.0
+    
+    # def _build_cost_weights(self, scales):
+    #     return jp.array([
+    #         scales.collision,        # cost_c_pick
+    #         scales.collision,        # cost_c_move
+    #         scales.theta,            # cost_theta
+    #         scales.velocity,         # cost_eef_vel
+    #         scales.z_axis,           # cost_eef_pos
+    #         scales.distance,         # cost_dist (pick)
+    #         scales.distance,         # cost_dist (move)
+    #         scales.orientation,      # cost_r
+    #         scales.eef_to_obj,       # cost_g_move
+    #         scales.obj_to_targ,      # obj_goal_dist
+    #         scales.object_orientation, # cost_ball_pose
+    #         scales.smoothness          # smoothness (ADD THIS!)
+    #     ])
     
     def _build_cost_weights(self, scales):
+        def get(x, k):
+            return x[k] if isinstance(x, dict) else getattr(x, k)
+
         return jp.array([
-            scales.collision,        # cost_c_pick
-            scales.collision,        # cost_c_move
-            scales.theta,            # cost_theta
-            scales.velocity,         # cost_eef_vel
-            scales.z_axis,           # cost_eef_pos
-            scales.distance,         # cost_dist (pick)
-            scales.distance,         # cost_dist (move)
-            scales.orientation,      # cost_r
-            scales.eef_to_obj,       # cost_g_move
-            scales.obj_to_targ,      # obj_goal_dist
-            scales.object_orientation, # cost_ball_pose
-            scales.smoothness          # smoothness (ADD THIS!)
+            get(scales, 'collision'),
+            get(scales, 'collision'),
+            get(scales, 'theta'),
+            get(scales, 'velocity'),
+            get(scales, 'z_axis'),
+            get(scales, 'distance'),
+            get(scales, 'distance'),
+            get(scales, 'orientation'),
+            get(scales, 'eef_to_obj'),
+            get(scales, 'obj_to_targ'),
+            get(scales, 'object_orientation'),
+            get(scales, 'smoothness'),
         ])
     
     
@@ -345,8 +299,7 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
         nvar_single = self.planner.cem.nvar_single
         nvar = self.planner.cem.nvar
 
-        nvar_single = 12
-        nvar= num_dof * nvar_single
+        # nvar= num_dof * nvar_single
 
         cov_scalar_coeff= 10
 
@@ -371,6 +324,11 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
             'success': jp.array(0),
             # 'reason': jp.array(0),  # 0=ok,1=fall,2=collision,3=timeout
             'reason': jp.array(REASON_OK),
+            #Current cost states
+            'current_cost_g': jp.array(0.0),
+            'current_cost_r': jp.array(0.0),
+            'cost_g_ball': jp.array(0.0),
+            'cost_r_ball': jp.array(0.0),
 
             # penalties
             'penalty_z': jp.array(0.0),
@@ -381,6 +339,8 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
             'target_0': jp.concatenate([target_pos, target_rot]),
             'prev_potential': jp.array(0.0, dtype=float),
             'prev_reward': jp.array(0.0, dtype=float),
+
+             #self._config.reward_config.scales,  # Placeholder for cost weights (will be set by action)
             
         }
 
@@ -404,59 +364,7 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
             info,
         )
     
-    # def _run_cem_planning(self, data: mjx.Data, info: Dict[str, Any]) -> tuple:
-    #     """Run CEM planning iterations and return the best first-step action and updated planner state."""
-
-    #     xi_mean = info['xi_mean']
-    #     xi_cov = info['xi_cov']
-
-    #     init_pos = data.qpos[self.joint_mask_pos]
-    #     init_vel = data.qvel[self.joint_mask_vel]
-
-    #     target_ball_dest = info['target_0']
-    #     ball_pos = data.qpos[self._ball_qpos_idx:self._ball_qpos_idx + 3]
-    #     ball_pick_init = self._ball_init_pose[:3]
-
-    #     cost_weights = None
-    #     cost_task_weights = {'pick': 0, 'move': 0}
-
-    #     thetadot_init = jp.tile(init_vel, (self.num_batch, 1))
-    #     state_term = thetadot_init
-
-    #     rng = info['rng']
-    #     rng, subkey = jax.random.split(rng)
-
-    #     # Generate fresh samples from current distribution
-    #     xi_samples, subkey = self.planner.cem.compute_xi_samples(subkey, xi_mean, xi_cov)
-
-    #     carry = (xi_mean, xi_cov, subkey, state_term,
-    #              self.planner.lamda_init, self.planner.s_init, xi_samples,
-    #              init_pos, init_vel, target_ball_dest,
-    #              ball_pos, ball_pick_init, cost_weights, cost_task_weights)
-
-    #     scan_over = jp.array([0] * self.maxiter_cem)
-
-    #     carry, out = jax.lax.scan(self.planner.cem.cem_iter, carry, scan_over, length=self.maxiter_cem)
-    #     (cost_batch, cost_list_batch, thetadot, theta,
-    #      avg_res_primal, avg_res_fixed, primal_residuals, fixed_point_residuals,
-    #      ball, eef_0, eef_1) = out
-
-    #     # Extract best sample from last CEM iteration
-    #     idx_min = jp.argmin(cost_batch[-1])
-    #     # best_vels shape: (num_steps, num_dof)
-    #     best_vels = thetadot[-1][idx_min].reshape((self.num_dof, self.planner.cem.num)).T
-
-    #     # Extract action: mean of first few steps (matching mpc_planner.compute_control)
-    #     cem_action = jp.mean(best_vels[1:6], axis=0)
-
-    #     # Updated planner state from carry
-    #     xi_mean_new = carry[0]
-    #     xi_cov_new = carry[1]
-
-    #     # Best cost breakdown for reward
-    #     best_cost_list = cost_list_batch[-1][idx_min]
-
-    #     return cem_action, xi_mean_new, xi_cov_new, rng, best_cost_list
+    
     
     def _run_cem_planning(self, data: mjx.Data, info: Dict[str, Any]) -> tuple:
         """Run CEM planning iterations and return the best first-step action and updated planner state."""
@@ -476,7 +384,7 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
                                     lamda_init=self.planner.lamda_init,
                                     s_init=self.planner.s_init,
                                     xi_samples=self.planner.xi_samples,
-                                    cost_weights=self._build_cost_weights(self._config.reward_config.scales),
+                                    cost_weights= self.cost_weights, #self._build_cost_weights(info['cost_weights']),
                                     cost_task_weights=cost_task_weights
                                     )
         
@@ -492,18 +400,16 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
 
     def step(self, state: mjx_env.State, action: jax.Array) -> mjx_env.State:
 
-        info = state.info.copy()
+        # info = state.info.copy()
 
-        task = info['task']
+        task = state.info['task']        
+        success = state.info['success']
+        reason = state.info['reason']
 
-        
-        success = info['success']
-        reason = info['reason']
-
-        penalty_z = info['penalty_z']
-        penalty_r_s = info['penalty_r_s']
-        penalty_col = info['penalty_col']
-        penalty_collision_real_time = info['penalty_collision_real_time']
+        penalty_z = state.info['penalty_z']
+        penalty_r_s = state.info['penalty_r_s']
+        penalty_col = state.info['penalty_col']
+        penalty_collision_real_time = state.info['penalty_collision_real_time']
 
 
         newly_reset = state.info['_steps'] == 0
@@ -511,33 +417,26 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
             newly_reset, 0.0, state.info['prev_potential']
         )
 
+        raw_weights = action
+
+        self.cost_weights = jax.nn.softmax(raw_weights) * self._config.action_scale
+        
+        # state.info['cost_weights'] = cost_weights
+
+
         # ---- Run CEM planning to get optimal joint velocities ----
         (cem_action, xi_mean_new, 
          xi_cov_new, best_cost_list) = self._run_cem_planning(state.data, state.info)
         
-        
-
-        #  xi_mean, 
-		# xi_cov,
-		# init_pos, 
-		# init_vel, 
-		# init_acc,
-		# target_ball_dest,
-		# ball_pos,
-		# ball_pick_init,
-		# lamda_init,
-		# s_init,
-		# xi_samples,
-		# cost_weights,
-		# cost_task_weights
+    
 
         # Update planner state in info
-        info['xi_mean'] = xi_mean_new
-        info['xi_cov'] = xi_cov_new
+        state.info['xi_mean'] = xi_mean_new
+        state.info['xi_cov'] = xi_cov_new
 
         # Apply CEM-optimized velocities on controlled joints
         qvel = state.data.qvel
-        qvel = qvel.at[self.joint_mask_vel].set(cem_action + action*self._config.action_scale)  # Add low-level action for exploration (scaled)
+        qvel = qvel.at[self.joint_mask_vel].set(cem_action) #Jut cem output
 
         # Update data with new velocities
         data = state.data.replace(qvel=qvel)
@@ -548,63 +447,9 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
                             action=jp.zeros((self._mjx_model.nu,), dtype=jp.float32),
                             n_substeps = self.n_substeps)
 
-        # Compute reward from CEM cost breakdown
-        raw_rewards = {
-            'collision': -(best_cost_list[0] + best_cost_list[1]),
-            'theta': -best_cost_list[2],
-            'velocity': -best_cost_list[3],
-            'z_axis': -best_cost_list[4],
-            'distance': -(best_cost_list[5] + 10 * best_cost_list[6]),
-            'orientation': -best_cost_list[7],
-            'eef_to_obj': -best_cost_list[8],
-            'obj_to_targ': -best_cost_list[9],
-            # 'eef_to_obj_move': -best_cost_list[10],
-            'object_orientation': -best_cost_list[10],
-        }
-
-        rewards = {
-            k: v * self._config.reward_config.scales[k]
-            for k, v in raw_rewards.items()
-        }
-        potential = sum(rewards.values()) / sum(
-            self._config.reward_config.scales.values()
-        )
-
-        # # # Reward progress. Clip at zero to not penalize mistakes like dropping
-        # # # during exploration.
-        reward = jp.maximum(
-            potential - state.info['prev_potential'], jp.zeros_like(potential)
-        )
-        
-        #Not using potential in Rewards as of now, using raw rewards directly for better interpretability and debugging.
-        reward = sum(rewards.values())
-
-        state.info['prev_potential'] = jp.maximum(
-            potential, state.info['prev_potential']
-        )
-
-        state.info['prev_rewards'] = rewards
 
 
-        reward = jp.where(newly_reset, 0.0, reward)  # Prevent first-step artifact
-
-        # # No reward information if you've dropped a block after you've picked it up.
-        # picked = box_pos[2] > 0.15
-        # state.info['episode_picked'] = jp.logical_or(
-        #     state.info['episode_picked'], picked
-        # )
-        # dropped = (box_pos[2] < 0.05) & state.info['episode_picked']
-        # reward += dropped.astype(float) * -0.1  # Small penalty.
-
-        # out_of_bounds = jp.any(jp.abs(box_pos) > 1.0)
-        # out_of_bounds |= box_pos[2] < 0.0
-        # done = (
-        #     out_of_bounds
-        #     | jp.isnan(data.qpos).any()
-        #     | jp.isnan(data.qvel).any()
-        #     | dropped
-        # )
-        cost_c = -raw_rewards['collision']
+        cost_c = best_cost_list[0] + best_cost_list[1]
 
 
         penalty_collision_real_time += self._collision_check(state)
@@ -623,10 +468,12 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
         current_cost_r_0 = quaternion_distance(state.data.xquat[self.planner.hande_id_0], jp.array([0.183, -0.683, -0.683, 0.183]))
         current_cost_r_1 = quaternion_distance(state.data.xquat[self.planner.hande_id_1], jp.array([0.183, -0.683, 0.683, -0.183]))
 
-        cost_g_ball = jp.linalg.norm(state.data.xpos[self._mj_model.body(name='ball').id] - info['target_0'][:3])
-        cost_r_ball = jp.linalg.norm(state.data.xquat[self._mj_model.body(name='ball').id] - info['target_0'][3:])
-        
+        current_cost_r = (current_cost_r_0 + current_cost_r_1)/2
 
+        cost_g_ball = jp.linalg.norm(state.data.xpos[self._mj_model.body(name='ball').id] - state.info['target_0'][:3])
+        cost_r_ball = jp.linalg.norm(state.data.xquat[self._mj_model.body(name='ball').id] - state.info['target_0'][3:])
+        
+        
         def pick_branch(_):
             target_reached = (
                 (current_cost_g < self.grab_pos_thresh) &
@@ -661,45 +508,6 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
             operand=None
         )
         
-        # # jp.where(a)
-        # if task==0: # pick task
-        #     target_reached = (
-        #             current_cost_g < self.grab_pos_thresh \
-        #             # and cost_dist < 0.04 \
-        #             and current_cost_r_0 < self.grab_rot_thresh \
-        #             and current_cost_r_1 < self.grab_rot_thresh
-        #     )
-
-        #     if target_reached:
-        #         task = 1  # move task
-
-        # elif task == 1:  # move task
-        #     target_reached = cost_g_ball < 0.04 and cost_r_ball<0.1
-        #     if target_reached:
-        #         print("======================= TARGET REACHED =======================", flush=True)
-        #         success = 1
-        #         reason = REASON_OK
-        #         # self.reset_simulation()
-                
-        #     elif current_cost_g > 0.2:
-        #         print("======================= TARGET FAILED: BALL FALL =======================", flush=True)
-        #         success = 0
-        #         reason = REASON_FALL
-        #         penalty_z += 5.0
-        #         # self.reset_simulation()
-        
-        # if time.time() - info['time'] > 30:
-        #     print("======================= TARGET FAILED: TIMEOUT =======================", flush=True)
-        #     success = 0
-        #     reason = REASON_TIMEOUT
-        #     # self.reset_simulation()
-
-        # if cost_c > 300:
-        #     print("======================= TARGET FAILED: COLLISION =======================", flush=True)
-        #     success = 0
-        #     reason = REASON_COLLISION
-        #     penalty_col += 0.5
-        #     # self.reset_simulation()
 
         collision_fail = cost_c > 300
 
@@ -719,10 +527,14 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
         done = target_reached | failed | out_of_bounds
 
 
-        info.update({
+        state.info.update({
             'task': task,
             'success': success,
             'reason': reason,
+            'cost_g_ball': cost_g_ball,
+            'cost_r_ball': cost_r_ball,
+            'current_cost_g': current_cost_g,
+            'current_cost_r': current_cost_r,
             'penalty_z': penalty_z,
             'penalty_r_s': penalty_r_s,
             'penalty_col': penalty_col,
@@ -730,9 +542,19 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
             # 'time': time.time()
         })
 
+        raw_rewards = self._get_reward(data, state.info)
 
-        reward += -penalty_collision_real_time #penalty for collision in real time
-        reward += failed.astype(float) * -5000  # Large penalty.for failure
+        rewards = {
+        k: v * self._config.reward_config.scales[k]
+        for k, v in raw_rewards.items()
+        }
+
+        potential = sum(rewards.values()) / sum(
+            self._config.reward_config.scales.values()
+        )
+
+        reward = jp.maximum(potential - state.info['prev_potential'], jp.zeros_like(potential))
+
 
         state.info['_steps'] += self._config.action_repeat
         state.info['_steps'] = jp.where(
@@ -745,104 +567,42 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
 
         obs = self._get_obs(data, state.info)
         return mjx_env.State(
-            data, obs, reward, done.astype(float), state.metrics, info
+            data, obs, reward, done.astype(float), state.metrics, state.info
         )
     
     def _get_reward(self, data: mjx.Data, info: Dict[str, Any]) -> Dict[str, jax.Array]:
-
-
-        # (xi_mean, xi_cov, key, state_term, lamda_init, s_init, xi_samples, init_pos, init_vel, 
-        #             target_ball_dest, ball_pos, ball_pick_init, cost_weights, cost_task_weights) = carry
         
-        xi_cov = info['xi_cov']
-        xi_mean = info['xi_mean']
+        # wc_pos=0.5
+        # wc_rot=0.5
 
+        cost_pos = info['cost_g_ball']
+        cost_rot = info['cost_r_ball']
+ 
+
+
+        # penalty_failure = info['penalty_col'] + info['penalty_z'] + info['penalty_r_s']
+
+        # # penalty_success_weight = 50
+
+        # cost = wc_pos*cost_pos + wc_rot*cost_rot  
+        # cost += penalty_success_weight*(1-info['success'])+ penalty_failure + info['penalty_collision_real_time']
         
+        # reward= -cost
 
-        state_term = data.qvel[self.joint_mask_vel] #thetadot_init
-        lamda_init = self.planner.lamda_init
-        s_init = self.planner.s_init
-        xi_samples = self.planner.xi_samples
-        init_pos = data.qpos[self.joint_mask_pos]
-        init_vel = data.qvel[self.joint_mask_vel]
-
-        target_ball_dest = info['target_0']
-
-        ball_pos = data.qpos[self._ball_qpos_idx:self._ball_qpos_idx+3]
-        
-        ball_pick_init = self._ball_init_pose[:3]
-        cost_weights = self._build_cost_weights(self._config.reward_config.scales)
-
-        cost_task_weights = {'pick': 0,'move': 0}
-        # cost_task_weights = 
-
-        xi_mean_prev = xi_mean 
-        xi_cov_prev = xi_cov
-
-        xi_samples_reshaped = xi_samples.reshape(1, self.num_dof, self.planner.cem.P.shape[1])
-        xi_samples_batched_over_dof = jp.transpose(xi_samples_reshaped, (1, 0, 2)) # shape: (DoF, B, P.shape[1])
-
-        state_term_reshaped = state_term.reshape(1, self.num_dof, 1)
-        state_term_batched_over_dof = jp.transpose(state_term_reshaped, (1, 0, 2)) #Shape: (DoF, B, 1)
-
-        lamda_init_reshaped = lamda_init.reshape(1, self.num_dof, self.planner.cem.P.shape[1])
-        lamda_init_batched_over_dof = jp.transpose(lamda_init_reshaped, (1, 0, 2)) # shape: (DoF, B, P.shape[1])
-
-        s_init_reshaped = s_init.reshape(1, self.num_dof, self.planner.cem.num_total_constraints_per_dof )
-        s_init_batched_over_dof = jp.transpose(s_init_reshaped, (1, 0, 2)) # shape: (DoF, B, num_total_constraints_per_dof)
-
-
-        
-        # Pass all arguments as positional arguments; not keyword arguments
-        xi_filtered, primal_residuals, fixed_point_residuals = self.planner.cem.compute_projection_batched_over_dof(
-                                                                xi_samples_batched_over_dof, 
-                                                                state_term_batched_over_dof, 
-                                                                lamda_init_batched_over_dof, 
-                                                                s_init_batched_over_dof, 
-                                                                init_pos)
-        
-        xi_filtered = xi_filtered.transpose(1, 0, 2).reshape(self.num_batch, -1) # shape: (B, num*num_dof)
-        
-        primal_residuals = jp.linalg.norm(primal_residuals, axis = 0)
-        fixed_point_residuals = jp.linalg.norm(fixed_point_residuals, axis = 0)
-                
-        avg_res_primal = jp.sum(primal_residuals, axis = 0)/self.maxiter_projection
-        
-        avg_res_fixed_point = jp.sum(fixed_point_residuals, axis = 0)/self.maxiter_projection
-
-        thetadot = jp.dot(self.planner.cem.A_thetadot, xi_filtered.T).T
-        thetaddot = jp.dot(self.planner.cem.A_thetaddot, xi_filtered.T).T
-        # thetadot = jjp.dot(self.A_thetadot, xi_samples.T).T
-
-
-        (theta, eef_0, eef_vel_lin_0, eef_vel_ang_0, eef_1, 
-         eef_vel_lin_1, eef_vel_ang_1, ball, 
-        target_1_pos, target_2_pos, 
-        target_1_rot, target_2_rot, collision) = self.planner.cem.compute_rollout_single(thetadot,init_pos, 
-                                                                                                    init_vel, 
-                                                                                                    target_ball_dest, 
-                                                                                                    ball_pos, 
-                                                                                                    ball_pick_init)
-        
-        cost, cost_list = self.planner.cem.compute_cost_single(theta, thetaddot, eef_0, eef_vel_lin_0, eef_vel_ang_0, 
-                                                        eef_1, eef_vel_lin_1, eef_vel_ang_1, ball,
-                                                        target_1_pos, target_2_pos, target_1_rot, target_2_rot,
-                                                        collision, target_ball_dest, ball_pos, cost_weights, cost_task_weights)
-
-        rewards = {
-            'collision': - (cost_list[0]+cost_list[1]),
-            'theta': - cost_list[2],
-            'velocity': -cost_list[3],
-            'z_axis': -cost_list[4],
-            'distance': -(cost_list[5]+10*cost_list[6]),
-            'orientation': -cost_list[7],
-            'eef_to_obj': -cost_list[8],
-            'obj_to_targ': -cost_list[9],
-            # 'eef_to_obj_move': -cost_list[10],
-            'object_orientation': -cost_list[10],
+        return {
+        'robot_eef_pos': -info['current_cost_g'],
+        'robot_eef_rot': -info['current_cost_r'],
+        #box target pose are activated only in 'move' phase
+        'box_target_pos': -info['cost_g_ball']*info['task'],
+        'box_target_rot': -info['cost_r_ball']*info['task'],
+        'box_pick_success': info['task'],
+        'box_reach_success': info['success'] ,
+        'collision_real_time': -info['penalty_collision_real_time'],
+        'collision_plan_horizon': -info['penalty_col'],
+        'fall_plan_horizon': -info['penalty_z'],
+        'r_s_plan_horizon': -info['penalty_r_s']
         }
 
-        return rewards
     
 
 
