@@ -19,7 +19,8 @@ REASON_TIMEOUT = 3
 
 def default_config() -> config_dict.ConfigDict:
   return config_dict.create(
-      ctrl_dt=0.1,
+      # sim_dt is actual physics timestep, ctrl_dt is how often we call the policy
+      ctrl_dt=0.2,
       sim_dt=0.1,
       episode_length=50,  # 5 sec.
       action_repeat=1,
@@ -220,13 +221,6 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
         rng, rng_joint = jax.random.split(rng)
 
 
-
-        penalty_z = 0
-        penalty_r_s = 0
-        penalty_col = 0
-
-        penalty_collision_real_time = 0
-
         ball_qpos_idx = self._mj_model.body_dofadr[self._mj_model.body(name="ball").id]
 
         
@@ -419,9 +413,9 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
 
         raw_weights = action
 
-        self.cost_weights = jax.nn.softmax(raw_weights) * self._config.action_scale
+        # self.cost_weights = jax.nn.softmax(raw_weights) * self._config.action_scale
+        self.cost_weights = raw_weights * self._config.action_scale
 
-        # state.info['cost_weights'] = cost_weights
 
 
         # ---- Run CEM planning to get optimal joint velocities ----
@@ -429,7 +423,6 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
          xi_cov_new, best_cost_list) = self._run_cem_planning(state.data, state.info)
         
     
-
         # Update planner state in info
         state.info['xi_mean'] = xi_mean_new
         state.info['xi_cov'] = xi_cov_new
@@ -448,30 +441,26 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
                             n_substeps = self.n_substeps)
 
 
-
-        cost_c = best_cost_list[0] + best_cost_list[1]
-
-
-        penalty_collision_real_time += self._collision_check(state)
+        penalty_collision_real_time = self._collision_check(data)
 
         
-        target_1_pos = state.data.site_xpos[self.planner.cem.box_site_1_id]
-        target_2_pos = state.data.site_xpos[self.planner.cem.box_site_2_id]
+        target_1_pos = data.site_xpos[self.planner.cem.box_site_1_id]
+        target_2_pos = data.site_xpos[self.planner.cem.box_site_2_id]
         
-        current_cost_g_0 = jp.linalg.norm(state.data.site_xpos[self.planner.tcp_id_0]-target_1_pos)
+        current_cost_g_0 = jp.linalg.norm(data.site_xpos[self.planner.tcp_id_0]-target_1_pos)
         
-        current_cost_g_1 = jp.linalg.norm(state.data.site_xpos[self.planner.tcp_id_1]-target_2_pos)
+        current_cost_g_1 = jp.linalg.norm(data.site_xpos[self.planner.tcp_id_1]-target_2_pos)
         
         current_cost_g = (current_cost_g_0 + current_cost_g_1)/2
 
 
-        current_cost_r_0 = quaternion_distance(state.data.xquat[self.planner.hande_id_0], jp.array([0.183, -0.683, -0.683, 0.183]))
-        current_cost_r_1 = quaternion_distance(state.data.xquat[self.planner.hande_id_1], jp.array([0.183, -0.683, 0.683, -0.183]))
+        current_cost_r_0 = quaternion_distance(data.xquat[self.planner.hande_id_0], jp.array([0.183, -0.683, -0.683, 0.183]))
+        current_cost_r_1 = quaternion_distance(data.xquat[self.planner.hande_id_1], jp.array([0.183, -0.683, 0.683, -0.183]))
 
         current_cost_r = (current_cost_r_0 + current_cost_r_1)/2
 
-        cost_g_ball = jp.linalg.norm(state.data.xpos[self._mj_model.body(name='ball').id] - state.info['target_0'][:3])
-        cost_r_ball = jp.linalg.norm(state.data.xquat[self._mj_model.body(name='ball').id] - state.info['target_0'][3:])
+        cost_g_ball = jp.linalg.norm(data.xpos[self._mj_model.body(name='ball').id] - state.info['target_0'][:3])
+        cost_r_ball = jp.linalg.norm(data.xquat[self._mj_model.body(name='ball').id] - state.info['target_0'][3:])
         
         
         def pick_branch(_):
@@ -496,11 +485,12 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
 
             success_new = jp.where(fall_condition, 0, success_new)
             reason_new = jp.where(fall_condition, REASON_FALL, reason_new)
-            penalty_z_new = jp.where(fall_condition, penalty_z + 5.0, penalty_z)
+            # penalty_z_new = jp.where(fall_condition, penalty_z + 5.0, penalty_z)
+            penalty_z_new = jp.where(fall_condition, 5.0, 0.0)
 
             return task, success_new, reason_new, penalty_z_new, target_reached
-
-
+        
+        old_task = task 
         task, success, reason, penalty_z, target_reached = jax.lax.cond(
             task == 0,
             pick_branch,
@@ -508,7 +498,8 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
             operand=None
         )
         
-
+        cost_c = best_cost_list[0] + best_cost_list[1]
+        
         collision_fail = cost_c > 300
 
         success = jp.where(collision_fail, 0, success)
@@ -524,7 +515,8 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
         target_reached = jp.array(target_reached)
         failed = jp.array(failed)
 
-        done = target_reached | failed | out_of_bounds
+        # done if target_reached and success 
+        done = target_reached * old_task | failed | out_of_bounds
 
 
         state.info.update({
@@ -556,6 +548,7 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
         # reward = jp.maximum(potential - state.info['prev_potential'], jp.zeros_like(potential))
         
         reward = potential - state.info['prev_potential']
+        state.info['prev_potential'] = potential
         
 
 
@@ -612,7 +605,7 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
     def _get_obs(self, data: mjx.Data, info: Dict[str, Any]) -> jax.Array:
 
 
-        obs = jp.concatenate([
+        base_obs = jp.concatenate([
             data.qpos,
             data.qvel,
             data.mocap_pos[self._mj_model.body_mocapid[self._mj_model.body(name='target_0').id]], #target pos
@@ -622,14 +615,26 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
             ),
         ])
 
-        # return obs
+        privileged_obs = jp.concatenate([
+            base_obs,
+            info['task'].reshape((1,)).astype(float),
+            info['success'].reshape((1,)).astype(float),
+            info['cost_g_ball'].reshape((1,)),
+            info['cost_r_ball'].reshape((1,)),
+            info['current_cost_g'].reshape((1,)),
+            info['current_cost_r'].reshape((1,)),
+            info['penalty_collision_real_time'].reshape((1,)),
+            data.xpos[self._mj_model.body(name='ball').id],       # ball position (3,)
+            data.xquat[self._mj_model.body(name='ball').id],      # ball orientation (4,)
+        ])
+
         return {
-        "state": obs,
-        "privileged_state": obs,
-    }
+        "state": base_obs,
+        "privileged_state": privileged_obs
+        }
     
-    def _collision_check(self, state: mjx_env.State):
-        contact = state.data.contact
+    def _collision_check(self, data: mjx.Data):
+        contact = data.contact
 
         geom1 = contact.geom1
         geom2 = contact.geom2
@@ -660,38 +665,6 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
         return penalty_collision_real_time
 
     
-    # def _collision_check(self,  state:mjx_env.State):
-
-    #     has_collision = False
-    #     penalty_collision_real_time = 0
-    #     num_penetration = 0
-
-    #     for i in range(state.data.ncon):
-    #         contact = state.data.contact[i]
-
-    #         if (contact.geom1 in self.robot_geom_ids or
-    #             contact.geom2 in self.robot_geom_ids):
-
-    #             if contact.dist < -1e-6:   # penetration threshold
-    #                 has_collision = True
-                    
-    #                 num_penetration+=1
-
-    #                 name1 = mujoco.mj_id2name(
-    #                     self._mj_model, mujoco.mjtObj.mjOBJ_GEOM, contact.geom1)
-    #                 name2 = mujoco.mj_id2name(
-    #                     self._mj_model, mujoco.mjtObj.mjOBJ_GEOM, contact.geom2)
-    #                 if state.info['task'] == 0:
-    #                     print(f"Collision detected between {name1} and {name2}")
-    #                 # break
-
-    #     if has_collision and state.info['task'] == 0:
-    #         print("================== COLLISION (SIM) ==================", flush=True)
-    #         # self.success = 0
-    #         # self.reason = REASON_COLLISION
-    #         # self.reset_simulation()
-    #         penalty_collision_real_time = 10*num_penetration
-
-    #     return penalty_collision_real_time
+    
 
     
