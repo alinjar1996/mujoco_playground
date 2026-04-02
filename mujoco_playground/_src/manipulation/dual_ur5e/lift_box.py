@@ -4,6 +4,7 @@ import mujoco
 from mujoco import mjx
 import time
 from mujoco_playground._src import mjx_env
+from mujoco_playground._src.manipulation.dual_ur5e.external.manipulator_mujoco.real_demo import data
 from mujoco_playground._src.manipulation.dual_ur5e.external.manipulator_mujoco.real_demo.sampling_based_planner.mpc_planner import run_cem_planner
 import os
 from mujoco_playground._src.manipulation.dual_ur5e.external.manipulator_mujoco.real_demo.sampling_based_planner.quat_math import quaternion_multiply, rotation_quaternion, quaternion_distance
@@ -273,8 +274,9 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
             ctrl=jp.zeros((self._mjx_model.nu,), dtype=jp.float32)
         #    impl=self._mjx_model.impl.value,
         )
+        
+        data = mjx.forward(self._mjx_model, data)
 
-        # data = data.replace(ctrl=jp.zeros((self._mjx_model.nu,), dtype=jp.float32))
 
 
 
@@ -608,11 +610,61 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
     def _get_obs(self, data: mjx.Data, info: Dict[str, Any]) -> jax.Array:
 
 
+        def quaternion_inverse(q):
+            return jp.concatenate([q[:1], -q[1:]]) / jp.dot(q, q)
+
+        target_pos = data.mocap_pos[self._mj_model.body_mocapid[self._mj_model.body(name='target_0').id]] #target pos
+        target_rot = data.mocap_quat[self._mj_model.body_mocapid[self._mj_model.body(name='target_0').id]] #target rot
+        
+        eef_0_pos = data.site_xpos[self.planner.tcp_id_0]
+        eef_1_pos = data.site_xpos[self.planner.tcp_id_1]
+
+        # eef_centre_pos = (eef_0_pos + eef_1_pos) / 2
+
+        eef_0_quat = data.xquat[self.planner.hande_id_0]
+        eef_1_quat = data.xquat[self.planner.hande_id_1]
+
+        # eef_mean_quat = (eef_0_quat + eef_1_quat) 
+
+        # eef_mean_quat = eef_mean_quat / jp.linalg.norm(eef_mean_quat)  # Normalize the mean quaternion
+
+        joint_pos = data.qpos[self._joint_mask_pos]
+        ball_pose = data.qpos[self._ball_qpos_idx:self._ball_qpos_idx+7]
+        ball_pos = ball_pose[:3]
+        ball_quat = ball_pose[3:]
+
+        # ball_eef_rel_pos = ball_pos - eef_centre_pos
+        
+        # ball_eef_rel_quat = quaternion_multiply(ball_quat, quaternion_inverse(eef_mean_quat))
+
+        target_ball_rel_pos = target_pos - ball_pos
+        target_ball_rel_quat = quaternion_multiply(target_rot, quaternion_inverse(ball_quat))
+
+        # --- Arm 0 ---
+        eef_0_targ_quat = jp.array([0.183, -0.683, -0.683, 0.183])
+        eef_1_targ_quat = jp.array([0.183, -0.683, 0.683, -0.183])
+        eef0_ball_rel_pos = ball_pos - eef_0_pos
+        eef0_ball_rel_quat = quaternion_multiply(
+            eef_0_targ_quat,
+            quaternion_inverse(eef_0_quat)
+        )
+
+        # --- Arm 1 ---
+        eef1_ball_rel_pos = ball_pos - eef_1_pos
+        eef1_ball_rel_quat = quaternion_multiply(
+            eef_1_targ_quat,
+            quaternion_inverse(eef_1_quat)
+        )
+
         base_obs = jp.concatenate([
-            data.qpos,
+            joint_pos,
+            eef0_ball_rel_pos,
+            eef0_ball_rel_quat,
+            eef1_ball_rel_pos,
+            eef1_ball_rel_quat,
             data.qvel,
-            data.mocap_pos[self._mj_model.body_mocapid[self._mj_model.body(name='target_0').id]], #target pos
-            data.mocap_quat[self._mj_model.body_mocapid[self._mj_model.body(name='target_0').id]], #target rot
+            target_ball_rel_pos,
+            target_ball_rel_quat, 
             (info['_steps'].reshape((1,)) / self._config.episode_length).astype(
                 float
             ),
