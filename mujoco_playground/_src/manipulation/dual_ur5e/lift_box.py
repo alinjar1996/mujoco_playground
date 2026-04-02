@@ -627,8 +627,6 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
             info['current_cost_g'].reshape((1,)),
             info['current_cost_r'].reshape((1,)),
             info['penalty_collision_real_time'].reshape((1,)),
-            data.xpos[self._mj_model.body(name='ball').id],       # ball position (3,)
-            data.xquat[self._mj_model.body(name='ball').id],      # ball orientation (4,)
         ])
 
         return {

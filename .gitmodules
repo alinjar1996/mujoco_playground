@@ -1,4 +1,4 @@
 [submodule "mujoco_playground/_src/manipulation/dual_ur5e/external/manipulator_mujoco"]
 	path = mujoco_playground/_src/manipulation/dual_ur5e/external/manipulator_mujoco
 	url = https://github.com/alinjar1996/manipulator_mujoco.git
-	branch = issue_36_lift_box
+	branch = playground_compatible_issue_36
