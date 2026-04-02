@@ -22,7 +22,7 @@ def default_config() -> config_dict.ConfigDict:
       # sim_dt is actual physics timestep, ctrl_dt is how often we call the policy
       ctrl_dt=0.2,
       sim_dt=0.1,
-      episode_length=50,  # 5 sec.
+      episode_length=50,  
       action_repeat=1,
       action_scale=1, #0.015,
 
@@ -62,13 +62,16 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
         self.use_hardware = False
         self.record_data_bench = False
         self.record_data_traj = False
-
+        
 
         # Planner params
         self.num_dof = 12
-        self.home_joint_position = jp.array([1.5, -1.8, 1.75, -1.25, -1.6, 0, -1.5, -1.8, 1.75, -1.25, -1.6, 0])
+        self.home_joint_position = jp.array([ 1.26155823, -1.63279201,  1.71236772, -1.87456712, 
+                                             -1.35176384, -0.26180875, -1.24849328, -1.65907332,  
+                                             1.45611901, -1.6316204,  -1.64648593,  0.23419371])
+        #jp.array([1.5, -1.8, 1.75, -1.25, -1.6, 0, -1.5, -1.8, 1.75, -1.25, -1.6, 0])
         self.init_joint_position = self.home_joint_position
-        self.init_noise = jp.full(self.num_dof, 0.3)        
+        self.init_noise = jp.full(self.num_dof, 0.01)        
         self.ball_init_pos_noise = jp.full(3, 0.01)
 
         print("INIT NOISE", self.init_noise)

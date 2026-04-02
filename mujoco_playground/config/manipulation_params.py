@@ -167,11 +167,11 @@ def brax_ppo_config(
     )
     rl_config.num_resets_per_eval = 1
   elif env_name == "DualUR5eBoxlift":
-    rl_config.num_timesteps = 50_000_000 #200_000_000
-    rl_config.num_evals = 20 #20
+    rl_config.num_timesteps = 5_000_000 #200_000_000
+    rl_config.num_evals = 10 #20
     rl_config.num_minibatches = 32
-    rl_config.unroll_length = 40 #40
-    rl_config.num_updates_per_batch = 4 #4
+    rl_config.unroll_length = 20 #40
+    rl_config.num_updates_per_batch = 3 #4
     rl_config.discounting = 0.99
     rl_config.learning_rate = 3e-4#3e-4
     rl_config.entropy_cost = 1e-2
