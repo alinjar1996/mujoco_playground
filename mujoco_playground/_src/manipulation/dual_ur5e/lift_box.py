@@ -274,7 +274,7 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
             ctrl=jp.zeros((self._mjx_model.nu,), dtype=jp.float32)
         #    impl=self._mjx_model.impl.value,
         )
-        
+
         data = mjx.forward(self._mjx_model, data)
 
 
@@ -658,13 +658,16 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
 
         base_obs = jp.concatenate([
             joint_pos,
-            eef0_ball_rel_pos,
-            eef0_ball_rel_quat,
-            eef1_ball_rel_pos,
-            eef1_ball_rel_quat,
+            # eef0_ball_rel_pos,
+            # eef0_ball_rel_quat,
+            # eef1_ball_rel_pos,
+            # eef1_ball_rel_quat,
+            ball_pose,
             data.qvel,
-            target_ball_rel_pos,
-            target_ball_rel_quat, 
+            # target_ball_rel_pos,
+            # target_ball_rel_quat, 
+            target_pos,
+            target_rot,
             (info['_steps'].reshape((1,)) / self._config.episode_length).astype(
                 float
             ),
