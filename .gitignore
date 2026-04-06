@@ -7,4 +7,6 @@ mujoco_menagerie
 checkpoints/
 logs
 images/
+*.npz
+
 

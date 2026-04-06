@@ -112,6 +112,15 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
             'object_orientation': 6.0,
             'smoothness': 0.1,
         }
+
+        # Base scales for softplus transformation (order matches compute_cost_single cost_list):
+        # [collision_pick, collision_move, theta, velocity, z_axis,
+        #  distance_pick, distance_move, orientation, eef_to_obj,
+        #  obj_to_targ, object_orientation, smoothness]
+        self._base_scales = jp.array([
+            500.0, 500.0, 0.3, 0.1, 10.0,
+            5.0, 5.0, 4.0, 7.0, 3.0, 6.0, 0.1
+        ])
         
 
         data=mujoco.MjData(self._mj_model)
@@ -418,9 +427,9 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
 
         raw_weights = action
 
-        # self.cost_weights = jax.nn.softmax(raw_weights) * self._config.action_scale
-        self.cost_weights = raw_weights * self._config.action_scale
-
+        # softplus ensures positive weights; multiply by base scales to recover correct magnitudes
+        self.cost_weights = jax.nn.softplus(raw_weights) * self._base_scales * self._config.action_scale
+        #softplus is log(1 + exp(x)), which smoothly maps real numbers to positive numbers
 
 
         # ---- Run CEM planning to get optimal joint velocities ----
