@@ -347,8 +347,8 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
             'target_0': jp.concatenate([target_pos, target_rot]),
             'prev_potential': jp.array(0.0, dtype=float),
             'prev_reward': jp.array(0.0, dtype=float),
-
-             #self._config.reward_config.scales,  # Placeholder for cost weights (will be set by action)
+            'eef_0_planned': jp.zeros((self.num_steps, 7)),
+            'eef_1_planned': jp.zeros((self.num_steps, 7)),
             
         }
 
@@ -402,7 +402,7 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
 
         cem_action = jp.mean(best_vels[1:6], axis=0)
 
-        return cem_action, xi_mean, xi_cov, best_cost_list
+        return cem_action, xi_mean, xi_cov, best_cost_list, eef_0_planned, eef_1_planned
 
        
 
@@ -428,18 +428,23 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
         raw_weights = action
 
         # softplus ensures positive weights; multiply by base scales to recover correct magnitudes
-        self.cost_weights = jax.nn.softplus(raw_weights) * self._base_scales * self._config.action_scale
+        # self.cost_weights = jax.nn.softplus(raw_weights) * self._base_scales * self._config.action_scale
         #softplus is log(1 + exp(x)), which smoothly maps real numbers to positive numbers
+
+        self.cost_weights = action
 
 
         # ---- Run CEM planning to get optimal joint velocities ----
         (cem_action, xi_mean_new, 
-         xi_cov_new, best_cost_list) = self._run_cem_planning(state.data, state.info)
+         xi_cov_new, best_cost_list,
+         eef_0_planned, eef_1_planned) = self._run_cem_planning(state.data, state.info)
         
     
         # Update planner state in info
         state.info['xi_mean'] = xi_mean_new
         state.info['xi_cov'] = xi_cov_new
+        state.info['eef_0_planned'] = eef_0_planned
+        state.info['eef_1_planned'] = eef_1_planned
 
         # Apply CEM-optimized velocities on controlled joints
         qvel = state.data.qvel
