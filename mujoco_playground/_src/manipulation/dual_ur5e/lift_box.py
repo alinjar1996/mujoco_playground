@@ -145,43 +145,27 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
             if name and name.startswith("robot"):
                 self.robot_geom_ids.add(i)
 
-
-        
-
     
-    # def _build_cost_weights(self, scales):
-    #     return jp.array([
-    #         scales.collision,        # cost_c_pick
-    #         scales.collision,        # cost_c_move
-    #         scales.theta,            # cost_theta
-    #         scales.velocity,         # cost_eef_vel
-    #         scales.z_axis,           # cost_eef_pos
-    #         scales.distance,         # cost_dist (pick)
-    #         scales.distance,         # cost_dist (move)
-    #         scales.orientation,      # cost_r
-    #         scales.eef_to_obj,       # cost_g_move
-    #         scales.obj_to_targ,      # obj_goal_dist
-    #         scales.object_orientation, # cost_ball_pose
-    #         scales.smoothness          # smoothness (ADD THIS!)
-    #     ])
-    
-    def _build_cost_weights(self, scales):
+    def _build_cost_weights(self, scales: Union[Dict, Any]) -> jax.Array:
+        """Converts a dictionary or config object of scales into a JAX array for the planner."""
         def get(x, k):
+            # This handles both standard Python dicts and ml_collections ConfigDicts
             return x[k] if isinstance(x, dict) else getattr(x, k)
 
+        # The order here MUST match the order used in cem_planner.compute_cost_single
         return jp.array([
-            get(scales, 'collision'),
-            get(scales, 'collision'),
-            get(scales, 'theta'),
-            get(scales, 'velocity'),
-            get(scales, 'z_axis'),
-            get(scales, 'distance'),
-            get(scales, 'distance'),
-            get(scales, 'orientation'),
-            get(scales, 'eef_to_obj'),
-            get(scales, 'obj_to_targ'),
-            get(scales, 'object_orientation'),
-            get(scales, 'smoothness'),
+            get(scales, 'collision_pick'),     # index 0
+            get(scales, 'collision_move'),     # index 1
+            get(scales, 'theta'),              # index 2
+            get(scales, 'velocity'),           # index 3
+            get(scales, 'z_axis'),             # index 4
+            get(scales, 'distance_pick'),      # index 5
+            get(scales, 'distance_move'),      # index 6
+            get(scales, 'orientation'),        # index 7
+            get(scales, 'eef_to_obj'),         # index 8
+            get(scales, 'obj_to_targ'),        # index 9
+            get(scales, 'object_orientation'), # index 10
+            get(scales, 'smoothness'),         # index 11
         ])
     
     
@@ -383,7 +367,7 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
                                     lamda_init=self.planner.lamda_init,
                                     s_init=self.planner.s_init,
                                     xi_samples=self.planner.xi_samples,
-                                    cost_weights= self.cost_weights, #self._build_cost_weights(info['cost_weights']),
+                                    cost_weights= self._build_cost_weights(self.cost_weights), #self._build_cost_weights(info['cost_weights']),
                                     cost_task_weights=cost_task_weights
                                     )
         
@@ -416,10 +400,10 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
             newly_reset, 0.0, state.info['prev_potential']
         )
 
-        raw_weights = action
+        # raw_weights = action
 
-        # self.cost_weights = jax.nn.softmax(raw_weights) * self._config.action_scale
-        self.cost_weights = raw_weights * self._config.action_scale
+        # # self.cost_weights = jax.nn.softmax(raw_weights) * self._config.action_scale
+        # self.cost_weights = raw_weights * self._config.action_scale
 
 
 
@@ -434,7 +418,11 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
 
         # Apply CEM-optimized velocities on controlled joints
         qvel = state.data.qvel
-        qvel = qvel.at[self.joint_mask_vel].set(cem_action) #Jut cem output
+        # qvel = qvel.at[self.joint_mask_vel].set(cem_action) #Jut cem output
+        qvel = qvel.at[self.joint_mask_vel].set(action* self._config.action_scale) #Jut cem output
+
+
+        jax.debug.print("action: {}", action)
 
         # Update data with new velocities
         data = state.data.replace(qvel=qvel)
