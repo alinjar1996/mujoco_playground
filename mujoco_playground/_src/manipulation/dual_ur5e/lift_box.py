@@ -23,7 +23,7 @@ def default_config() -> config_dict.ConfigDict:
       # sim_dt is actual physics timestep, ctrl_dt is how often we call the policy
       ctrl_dt=0.2,
       sim_dt=0.1,
-      episode_length=50,  
+      episode_length=100,  
       action_repeat=1,
       action_scale=1, #0.015,
 
@@ -50,7 +50,8 @@ def default_config() -> config_dict.ConfigDict:
 
 class LiftBox(dual_ur5e_base.DualUR5eEnv):
 
-    def __init__(self, config=default_config(), config_overrides=None, view=False):
+    def __init__(self, config=default_config(), config_overrides=None, 
+                 home_joint_position=np.array([1.5, -1.8, 1.75, -1.25, -1.6, 0, -1.5, -1.8, 1.75, -1.25, -1.6, 0])):
 
         super().__init__(
             xml_path=os.path.abspath("../../mujoco_playground/_src/manipulation/dual_ur5e/xmls/scene.xml"),  
@@ -67,10 +68,13 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
 
         # Planner params
         self.num_dof = 12
-        self.home_joint_position = jp.array([ 1.26155823, -1.63279201,  1.71236772, -1.87456712, 
-                                             -1.35176384, -0.26180875, -1.24849328, -1.65907332,  
-                                             1.45611901, -1.6316204,  -1.64648593,  0.23419371])
-        #jp.array([1.5, -1.8, 1.75, -1.25, -1.6, 0, -1.5, -1.8, 1.75, -1.25, -1.6, 0])
+        # self.home_joint_position = jp.array([ 1.26155823, -1.63279201,  1.71236772, -1.87456712, 
+        #                                      -1.35176384, -0.26180875, -1.24849328, -1.65907332,  
+        #                                      1.45611901, -1.6316204,  -1.64648593,  0.23419371])
+        # self.home_joint_position = home_joint_position
+        # self.home_joint_position = jp.array([1.5, -1.8, 1.75, -1.25, -1.6, 0, -1.5, -1.8, 1.75, -1.25, -1.6, 0])
+        
+        self.home_joint_position = home_joint_position
         self.init_joint_position = self.home_joint_position
         self.init_noise = jp.full(self.num_dof, 0.01)        
         self.ball_init_pos_noise = jp.full(3, 0.01)
@@ -128,6 +132,10 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
         self.joint_mask_pos = self._joint_mask_pos
         self.joint_mask_vel = self._joint_mask_vel
 
+        data.qpos[self.joint_mask_pos] = self.init_joint_position
+
+        mujoco.mj_forward(self._mj_model, data)
+
 
 
 # Initialize CEM/MPC planner
@@ -146,7 +154,6 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
         )
 
         
-
         self.robot_geom_ids = set()
 
         for i in range(self._mj_model.ngeom):
@@ -154,25 +161,6 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
             if name and name.startswith("robot"):
                 self.robot_geom_ids.add(i)
 
-
-        
-
-    
-    # def _build_cost_weights(self, scales):
-    #     return jp.array([
-    #         scales.collision,        # cost_c_pick
-    #         scales.collision,        # cost_c_move
-    #         scales.theta,            # cost_theta
-    #         scales.velocity,         # cost_eef_vel
-    #         scales.z_axis,           # cost_eef_pos
-    #         scales.distance,         # cost_dist (pick)
-    #         scales.distance,         # cost_dist (move)
-    #         scales.orientation,      # cost_r
-    #         scales.eef_to_obj,       # cost_g_move
-    #         scales.obj_to_targ,      # obj_goal_dist
-    #         scales.object_orientation, # cost_ball_pose
-    #         scales.smoothness          # smoothness (ADD THIS!)
-    #     ])
     
     def _build_cost_weights(self, scales):
         def get(x, k):
@@ -349,6 +337,8 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
             'prev_reward': jp.array(0.0, dtype=float),
             'eef_0_planned': jp.zeros((self.num_steps, 7)),
             'eef_1_planned': jp.zeros((self.num_steps, 7)),
+            'target_1_pos': jp.zeros(3),
+            'target_2_pos': jp.zeros(3),
             
         }
 
@@ -550,6 +540,8 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
             'penalty_r_s': penalty_r_s,
             'penalty_col': penalty_col,
             'penalty_collision_real_time': penalty_collision_real_time,
+            'target_1_pos': target_1_pos,
+            'target_2_pos': target_2_pos,
             # 'time': time.time()
         })
 
