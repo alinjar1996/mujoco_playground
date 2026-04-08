@@ -190,6 +190,34 @@ def brax_ppo_config(
   return rl_config
 
 
+def brax_ars_config(
+    env_name: str, unused_impl: Optional[str] = None
+) -> config_dict.ConfigDict:
+  """Returns tuned Brax ARS config for the given environment."""
+  env_config = manipulation.get_default_config(env_name)
+
+  rl_config = config_dict.create(
+      episode_length=env_config.episode_length,
+      normalize_observations=True,
+      action_repeat=env_config.action_repeat,
+  )
+
+  if env_name == "DualUR5eBoxlift":
+    rl_config.num_timesteps = 500_000
+    rl_config.num_evals = 5
+    rl_config.number_of_directions = 60
+    rl_config.top_directions = 20
+    rl_config.step_size = 0.015
+    rl_config.exploration_noise_std = 0.025
+    rl_config.num_eval_envs = 128
+    rl_config.reward_shift = 0.0
+    rl_config.seed = 0
+  else:
+    raise ValueError(f"Unsupported env: {env_name}")
+
+  return rl_config
+
+
 def brax_vision_ppo_config(
     env_name: str, unused_impl: Optional[str] = None
 ) -> config_dict.ConfigDict:

@@ -418,10 +418,10 @@ class LiftBox(dual_ur5e_base.DualUR5eEnv):
         raw_weights = action
 
         # softplus ensures positive weights; multiply by base scales to recover correct magnitudes
-        # self.cost_weights = jax.nn.softplus(raw_weights) * self._base_scales * self._config.action_scale
+        self.cost_weights = jax.nn.softplus(raw_weights) * self._base_scales * self._config.action_scale
         #softplus is log(1 + exp(x)), which smoothly maps real numbers to positive numbers
 
-        self.cost_weights = action
+        # self.cost_weights = action
 
 
         # ---- Run CEM planning to get optimal joint velocities ----
