@@ -203,13 +203,13 @@ def brax_ars_config(
   )
 
   if env_name == "DualUR5eBoxlift":
-    rl_config.num_timesteps = 500_000
+    rl_config.num_timesteps = 1_000_000
     rl_config.num_evals = 5
     rl_config.number_of_directions = 60
-    rl_config.top_directions = 20
-    rl_config.step_size = 0.015
-    rl_config.exploration_noise_std = 0.025
-    rl_config.num_eval_envs = 128
+    rl_config.top_directions = 30
+    rl_config.step_size = 0.03 #0.015
+    rl_config.exploration_noise_std = 0.25 #0.025
+    rl_config.num_eval_envs = 256
     rl_config.reward_shift = 0.0
     rl_config.seed = 0
   else:
