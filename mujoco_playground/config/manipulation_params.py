@@ -212,8 +212,19 @@ def brax_ars_config(
     rl_config.num_eval_envs = 256
     rl_config.reward_shift = 0.0
     rl_config.seed = 0
+  elif env_name == "DualUR5eBalllift":
+    rl_config.num_timesteps = 10_000_000
+    rl_config.num_evals = 20
+    rl_config.number_of_directions = 500
+    rl_config.top_directions = 200
+    rl_config.step_size = 0.03 #0.015
+    rl_config.exploration_noise_std = 1.0 #0.025
+    rl_config.num_eval_envs = 256
+    rl_config.reward_shift = 0.0
+    rl_config.seed = 0
   else:
     raise ValueError(f"Unsupported env: {env_name}")
+  
 
   return rl_config
 

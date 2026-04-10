@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""Constants for ALOHA."""
+"""Constants for Dual UR5e."""
 
 from mujoco_playground._src import mjx_env
 

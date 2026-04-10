@@ -145,7 +145,9 @@ class DualUR5eEnv(mjx_env.MjxEnv):
     # return self._mjx_model.nv
     # return int(np.sum(self._joint_mask_vel))
     # ACtion is only the cost weights for the planner, not the actual control inputs to the robot, so we can set it to a fixed size.
-    return 12
+    # return 12
+    return 11
+    # return len(self._config._base_scales)
   
   @property
   def mj_model(self) -> mujoco.MjModel:

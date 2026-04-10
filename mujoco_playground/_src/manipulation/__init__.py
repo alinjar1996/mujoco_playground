@@ -29,6 +29,7 @@ from mujoco_playground._src.manipulation.franka_emika_panda_robotiq import push_
 from mujoco_playground._src.manipulation.leap_hand import reorient as leap_cube_reorient
 from mujoco_playground._src.manipulation.leap_hand import rotate_z as leap_rotate_z
 from mujoco_playground._src.manipulation.dual_ur5e import lift_box as dual_ur5e_lift_box
+from mujoco_playground._src.manipulation.dual_ur5e import lift_ball as dual_ur5e_lift_ball
 
 
 _envs = {
@@ -42,6 +43,8 @@ _envs = {
     "LeapCubeReorient": leap_cube_reorient.CubeReorient,
     "LeapCubeRotateZAxis": leap_rotate_z.CubeRotateZAxis,
     "DualUR5eBoxlift": dual_ur5e_lift_box.LiftBox,
+    "DualUR5eBalllift": dual_ur5e_lift_ball.LiftBall,
+
 }
 
 _cfgs = {
@@ -55,6 +58,7 @@ _cfgs = {
     "LeapCubeReorient": leap_cube_reorient.default_config,
     "LeapCubeRotateZAxis": leap_rotate_z.default_config,
     "DualUR5eBoxlift": dual_ur5e_lift_box.default_config,
+    "DualUR5eBalllift": dual_ur5e_lift_ball.default_config,
 }
 
 _randomizer = {
