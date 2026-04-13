@@ -54,9 +54,11 @@ class LiftBall(dual_ur5e_base.DualUR5eEnv):
                  home_joint_position=np.array([1.5, -1.8, 1.75, -1.25, -1.6, 0, -1.5, -1.8, 1.75, -1.25, -1.6, 0])):
 
         super().__init__(
-            # xml_path=os.path.abspath("../../mujoco_playground/_src/manipulation/dual_ur5e/xmls/scene.xml"),  
             xml_path=os.path.abspath("../../mujoco_playground/_src/manipulation/dual_ur5e/external/" \
                                         "manipulator_mujoco/real_demo/ur5e_hande_mjx/scene.xml"),  
+            
+            # xml_path=os.path.abspath("././mujoco_playground/_src/manipulation/dual_ur5e/external/" \
+            #                             "manipulator_mujoco/real_demo/ur5e_hande_mjx/scene.xml"),  
             config=config,
             config_overrides=config_overrides,
         )
