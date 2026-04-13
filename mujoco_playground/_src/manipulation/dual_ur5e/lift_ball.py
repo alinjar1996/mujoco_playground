@@ -32,10 +32,10 @@ def default_config() -> config_dict.ConfigDict:
         scales=config_dict.create(
             robot_eef_pos=1.0,
             robot_eef_rot=1.0,
-            box_target_pos=1.0,
-            box_target_rot=1.0,
-            box_pick_success=20.0,
-            box_reach_success=40.0,
+            ball_target_pos=1.0,
+            ball_target_rot=1.0,
+            ball_pick_success=20.0,
+            ball_reach_success=40.0,
             collision_real_time=5.0,
             collision_plan_horizon=1.0,
             fall_plan_horizon=1.0,
@@ -84,7 +84,7 @@ class LiftBall(dual_ur5e_base.DualUR5eEnv):
         print("INIT NOISE", self.init_noise)
 
         self.num_batch=100
-        self.num_steps=12
+        self.num_steps=15
         self.maxiter_cem=2
         self.maxiter_projection=5
         self.num_elite=0.5
@@ -103,7 +103,7 @@ class LiftBall(dual_ur5e_base.DualUR5eEnv):
         self.thetadot = jp.zeros(self.num_dof)
 
 
-        self.cost_weights = {
+        cost_weights_dict = {
             'collision_pick': 200,
             'collision_move': 200,
             'theta': 0.2,
@@ -125,6 +125,8 @@ class LiftBall(dual_ur5e_base.DualUR5eEnv):
             200.0, 200.0, 0.2, 0.04, 1.5,
             5.0, 5.0, 0.5, 5.0, 5.0, 0.1
         ])
+
+        self.cost_weights = self._base_scales.copy()  # Initialize cost weights to base scales
         
 
         data=mujoco.MjData(self._mj_model)
@@ -282,7 +284,7 @@ class LiftBall(dual_ur5e_base.DualUR5eEnv):
 
         # nvar= num_dof * nvar_single
 
-        cov_scalar_coeff= 10
+        cov_scalar_coeff= self.planner.cov_coeff_scalar
 
         xi_cov = jp.kron(
             jp.eye(num_dof),
@@ -377,6 +379,7 @@ class LiftBall(dual_ur5e_base.DualUR5eEnv):
 		avg_res_primal,avg_res_fixed,primal_residuals,fixed_point_residuals,idx_min,
 		ball_out, eef_0_planned,eef_1_planned,eef_0,eef_1) = out
 
+
         cem_action = jp.mean(best_vels[1:6], axis=0)
 
         return cem_action, xi_mean, xi_cov, best_cost_list, eef_0_planned, eef_1_planned
@@ -413,7 +416,7 @@ class LiftBall(dual_ur5e_base.DualUR5eEnv):
         self.cost_weights = jax.nn.softplus(raw_weights) * self._base_scales
         #softplus is log(1 + exp(x)), which smoothly maps real numbers to positive numbers
 
-        self.cost_weights = action
+        # self.cost_weights = raw_weights
 
 
         # ---- Run CEM planning to get optimal joint velocities ----
@@ -522,6 +525,7 @@ class LiftBall(dual_ur5e_base.DualUR5eEnv):
         done = target_reached * old_task | failed | out_of_bounds
 
 
+
         state.info.update({
             'task': task,
             'success': success,
@@ -593,10 +597,10 @@ class LiftBall(dual_ur5e_base.DualUR5eEnv):
         'robot_eef_pos': -info['current_cost_g'],
         'robot_eef_rot': -info['current_cost_r'],
         #box target pose are activated only in 'move' phase
-        'box_target_pos': -info['cost_g_ball']*info['task'],
-        'box_target_rot': -info['cost_r_ball']*info['task'],
-        'box_pick_success': info['task'],
-        'box_reach_success': info['success'] ,
+        'ball_target_pos': -info['cost_g_ball']*info['task'],
+        'ball_target_rot': -info['cost_r_ball']*info['task'],
+        'ball_pick_success': info['task'],
+        'ball_reach_success': info['success'] ,
         'collision_real_time': -info['penalty_collision_real_time'],
         'collision_plan_horizon': -info['penalty_col'],
         'fall_plan_horizon': -info['penalty_z'],
