@@ -188,7 +188,7 @@ def brax_ppo_config(
     )
     rl_config.num_resets_per_eval = 1
   elif env_name == "DualUR5eBalllift":
-    rl_config.num_timesteps = 100_000 #10_000_000 #200_000_000
+    rl_config.num_timesteps = 1000_000 #10_000_000 #200_000_000
     rl_config.num_evals = 5 #10 #20
     rl_config.num_minibatches = 32
     rl_config.unroll_length = 10 #40
@@ -203,7 +203,7 @@ def brax_ppo_config(
         value_hidden_layer_sizes=(512, 256, 128),
         policy_obs_key="state",
         value_obs_key="privileged_state",
-        init_noise_std=2.0,      # ← increase exploration
+        init_noise_std=10.0,      # ← increase exploration default 1.0
         noise_std_type="scalar",
         state_dependent_std=False,
     )
